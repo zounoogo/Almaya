@@ -1,6 +1,5 @@
-// src/components/AuthForm.js
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // Import de Link
 import { useAuth } from '../contexts/AuthContext';
 
 const AuthForm = () => {
@@ -61,31 +60,56 @@ const AuthForm = () => {
 
     return (
         <div className="container py-5">
-            <h2 className="text-center">{isLogin ? 'Connexion' : 'Inscription'}</h2>
-            <form onSubmit={handleSubmit} className="mx-auto" style={{ maxWidth: '400px' }}>
+            {/* Section Logo ALMAYA */}
+            <div className="text-center mb-4">
+                <Link to="/" className="text-decoration-none">
+                    {/* ALMAYA SERVICES en Orange ALMAYA (text-primary) */}
+                    <h2 className="fw-bold mb-0 text-primary">ALMAYA SERVICES</h2>
+                    {/* TRAVEL en Bleu ALMAYA (text-info) */}
+                    <span className="small d-block text-info">TRAVEL</span>
+                </Link>
+            </div>
+            
+            <h3 className="text-center text-dark mb-4 fw-light">{isLogin ? 'Connexion à votre compte' : 'Créer un nouveau compte'}</h3>
+
+            {/* Formulaire dans une carte Bootstrap pour le style */}
+            <form onSubmit={handleSubmit} className="mx-auto card p-4 shadow-sm" style={{ maxWidth: '400px' }}>
+                
                 {!isLogin && (
                     <div className="mb-3">
-                        <label className="form-label">Nom d'utilisateur</label>
+                        <label className="form-label text-dark">Nom d'utilisateur</label>
                         <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className="form-control" required />
                     </div>
                 )}
                 <div className="mb-3">
-                    <label className="form-label">Email</label>
+                    <label className="form-label text-dark">Email</label>
                     <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="form-control" required />
                 </div>
                 <div className="mb-3">
-                    <label className="form-label">Mot de passe</label>
+                    <label className="form-label text-dark">Mot de passe</label>
                     <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="form-control" required />
                 </div>
-                <button type="submit" className={`btn btn-${isLogin ? 'primary' : 'success'} w-100`}>
+                
+                {/* Bouton de soumission : Orange (primary) pour la connexion, Bleu (info) pour l'inscription */}
+                <button 
+                    type="submit" 
+                    className={`btn btn-${isLogin ? 'primary' : 'info'} w-100 fw-bold`}
+                >
                     {isLogin ? 'Se connecter' : 'S\'inscrire'}
                 </button>
+                
+                {/* Message d'erreur/succès : utilise alert-info (Bleu ALMAYA) */}
                 {message && <div className="alert alert-info mt-3">{message}</div>}
             </form>
+            
+            {/* Lien de bascule : utilise text-info (Bleu ALMAYA) pour le lien */}
             <div className="text-center mt-3">
-                <p>
+                <p className="text-muted">
                     {isLogin ? "Pas encore de compte ? " : "Déjà un compte ? "}
-                    <button onClick={handleToggleForm} className="btn btn-link p-0">
+                    <button 
+                        onClick={handleToggleForm} 
+                        className="btn btn-link text-info fw-bold p-0 text-decoration-none"
+                    >
                         {isLogin ? 'Inscrivez-vous' : 'Connectez-vous'}
                     </button>
                 </p>

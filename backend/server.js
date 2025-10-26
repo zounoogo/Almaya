@@ -2,9 +2,9 @@
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-const bcrypt = require('bcrypt'); // Importation de bcrypt
-const jwt = require('jsonwebtoken'); // Importation de jsonwebtoken
-const db = require('./db');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const db = require('./db'); // Connexion DB
 require('dotenv').config();
 
 const app = express();
@@ -15,9 +15,12 @@ app.use(cors());
 app.use(express.json());
 
 // Clé secrète pour les tokens JWT
-const JWT_SECRET = process.env.JWT_SECRET || 'votre_cle_secrete_securisee';
+const JWT_SECRET = process.env.JWT_SECRET || 'votre_cle_secrete_securisee_par_defaut';
 
-// Middleware de protection des routes
+// ==========================================================
+//          MIDDLEWARE D'AUTHENTIFICATION
+// ==========================================================
+
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -31,7 +34,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 // ==========================================================
-//           ROUTES D'AUTHENTIFICATION ET DE PROFIL
+//          ROUTES D'AUTHENTIFICATION ET DE PROFIL
 // ==========================================================
 
 // --- Endpoint d'inscription ---
@@ -39,7 +42,7 @@ app.post('/api/register', async (req, res) => {
     const { username, email, password } = req.body;
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        const [result] = await db.query('INSERT INTO users (username, email, password) VALUES (?, ?, ?)', [username, email, hashedPassword]);
+        await db.query('INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, "customer")', [username, email, hashedPassword]);
         res.status(201).send({ message: 'Utilisateur enregistré avec succès.' });
     } catch (error) {
         if (error.code === 'ER_DUP_ENTRY') {
@@ -66,7 +69,7 @@ app.post('/api/login', async (req, res) => {
         }
 
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '1h' });
-        res.status(200).send({ message: 'Connexion réussie !', token });
+        res.status(200).send({ message: 'Connexion réussie !', token, user: { id: user.id, username: user.username, email: user.email, role: user.role } });
     } catch (error) {
         console.error('Erreur lors de la connexion:', error);
         res.status(500).send({ message: 'Erreur lors de la connexion.' });
@@ -76,7 +79,7 @@ app.post('/api/login', async (req, res) => {
 // --- Endpoint de profil protégé ---
 app.get('/api/profile', authenticateToken, async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT id, username, email FROM users WHERE id = ?', [req.user.id]);
+        const [rows] = await db.query('SELECT id, username, email, role FROM users WHERE id = ?', [req.user.id]);
         if (rows.length === 0) {
             return res.status(404).send({ message: 'Utilisateur non trouvé.' });
         }
@@ -89,22 +92,23 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 
 
 // ==========================================================
-//          ROUTES DE SERVICES (CONTACT, CATÉGORIES, OFFRES)
+//          ROUTES DE SERVICES (CONTACT, CATÉGORIES, OFFRES, LOCATIONS)
 // ==========================================================
 
 // --- Endpoint pour le formulaire de contact ---
 app.post('/api/contact', async (req, res) => {
     const { name, email, message } = req.body;
+    // NOTE: Remplacer les valeurs d'auth par vos propres informations ou variables d'environnement
     const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: 'votre.email@gmail.com',
-            pass: 'votre_mot_de_passe'
+            user: 'votre.email@gmail.com', // Remplacer
+            pass: 'votre_mot_de_passe' // Remplacer
         }
     });
     const mailOptions = {
         from: email,
-        to: 'votre.email@votreagence.com',
+        to: 'votre.email@votreagence.com', // Remplacer par l'email de réception
         subject: `Nouveau message de contact de ${name}`,
         text: `Nom: ${name}\nEmail: ${email}\n\nMessage:\n${message}`
     };
@@ -120,42 +124,141 @@ app.post('/api/contact', async (req, res) => {
 // --- Endpoint pour récupérer toutes les catégories ---
 app.get('/api/categories', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT * FROM categories');
+        const [rows] = await db.query('SELECT id, name, slug, icon, description FROM categories');
         res.status(200).json(rows);
     } catch (error) {
         console.error('Erreur lors de la récupération des catégories:', error);
-        res.status(500).json({ message: "Erreur lors de la récupération des catégories", error });
+        res.status(500).json({ message: "Erreur interne lors de la récupération des catégories", error });
     }
 });
 
-// --- Endpoint pour récupérer le nom d'une catégorie ---
+// --- Endpoint pour récupérer le nom d'une catégorie (par slug) ---
 app.get('/api/categories/:category_id', async (req, res) => {
-    const { category_id } = req.params;
+    const categorySlug = req.params.category_id;
     try {
-        const [rows] = await db.query('SELECT name FROM categories WHERE id = ?', [category_id]);
+        const [rows] = await db.query('SELECT id, name, slug FROM categories WHERE slug = ?', [categorySlug]);
         if (rows.length === 0) {
             return res.status(404).json({ message: "Catégorie non trouvée" });
         }
         res.status(200).json(rows[0]);
     } catch (error) {
-        res.status(500).json({ message: "Erreur lors de la récupération de la catégorie", error });
+        console.error('Erreur lors de la récupération du nom de la catégorie:', error);
+        res.status(500).json({ message: "Erreur interne lors de la récupération de la catégorie", error });
     }
 });
 
-// --- Endpoint pour récupérer les offres d'une catégorie spécifique ---
+// --- Endpoint pour récupérer les offres d'une catégorie spécifique (par slug) ---
 app.get('/api/categories/:category_id/offers', async (req, res) => {
-    const { category_id } = req.params;
+    const categorySlug = req.params.category_id;
+    
+    const sqlQuery = `
+        SELECT
+            o.id, 
+            o.title, 
+            o.description, 
+            o.price, 
+            o.infos_price, 
+            o.image, 
+            o.duration,
+            l.name AS location_name 
+        FROM offers o
+        JOIN categories st ON o.service_type_id = st.id  
+        JOIN locations l ON o.location_id = l.id           
+        WHERE st.slug = ?
+    `;
+
     try {
-        const [rows] = await db.query('SELECT * FROM offers WHERE category_id = ?', [category_id]);
+        const [offers] = await db.query(sqlQuery, [categorySlug]);
+
+        if (offers.length === 0) {
+            const [categoryRows] = await db.query('SELECT id FROM categories WHERE slug = ?', [categorySlug]);
+            
+            if (categoryRows.length === 0) {
+                return res.status(404).json({ message: "La catégorie spécifiée n'existe pas." });
+            }
+        }
+
+        res.status(200).json(offers); 
+    } catch (error) {
+        console.error('Erreur FATALE lors de la récupération des offres (Erreur DB):', error);
+        res.status(500).json({ 
+            message: "Erreur interne du serveur lors de la récupération des offres. Vérifiez votre requête SQL et le nom des tables.", 
+            dbError: error.message 
+        });
+    }
+});
+
+// --- NOUVEAU: Endpoint pour récupérer toutes les destinations ---
+app.get('/api/locations', async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT id, name, slug, region FROM locations ORDER BY name ASC');
         res.status(200).json(rows);
     } catch (error) {
-        console.error('Erreur lors de la récupération des offres:', error);
-        res.status(500).json({ message: "Erreur lors de la récupération des offres", error });
+        console.error('Erreur lors de la récupération des destinations:', error);
+        res.status(500).json({ message: "Erreur interne lors de la récupération des destinations", error });
     }
 });
 
+// --- NOUVEAU: Endpoint pour récupérer une destination spécifique (par slug) ---
+app.get('/api/locations/:location_slug', async (req, res) => {
+    const locationSlug = req.params.location_slug;
+    try {
+        const [rows] = await db.query('SELECT id, name, slug, region FROM locations WHERE slug = ?', [locationSlug]);
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Destination non trouvée" });
+        }
+        res.status(200).json(rows[0]);
+    } catch (error) {
+        console.error('Erreur lors de la récupération du nom de la destination:', error);
+        res.status(500).json({ message: "Erreur interne lors de la récupération de la destination", error });
+    }
+});
+
+// --- NOUVEAU: Endpoint pour récupérer les offres d'une destination spécifique ---
+app.get('/api/locations/:location_slug/offers', async (req, res) => {
+    const locationSlug = req.params.location_slug;
+    
+    const sqlQuery = `
+        SELECT
+            o.id, 
+            o.title, 
+            o.description, 
+            o.price, 
+            o.infos_price, 
+            o.image, 
+            o.duration,
+            c.name AS category_name, 
+            c.slug AS category_slug
+        FROM offers o
+        JOIN locations l ON o.location_id = l.id
+        JOIN categories c ON o.service_type_id = c.id           
+        WHERE l.slug = ?
+    `;
+
+    try {
+        const [offers] = await db.query(sqlQuery, [locationSlug]);
+
+        if (offers.length === 0) {
+            const [locationRows] = await db.query('SELECT id FROM locations WHERE slug = ?', [locationSlug]);
+            
+            if (locationRows.length === 0) {
+                return res.status(404).json({ message: "La destination spécifiée n'existe pas." });
+            }
+        }
+
+        res.status(200).json(offers); 
+    } catch (error) {
+        console.error('Erreur FATALE lors de la récupération des offres par destination (Erreur DB):', error);
+        res.status(500).json({ 
+            message: "Erreur interne du serveur lors de la récupération des offres par destination.", 
+            dbError: error.message 
+        });
+    }
+});
+
+
 // ==========================================================
-//                  DÉMARRAGE DU SERVEUR
+//          DÉMARRAGE DU SERVEUR
 // ==========================================================
 
 app.listen(port, () => {

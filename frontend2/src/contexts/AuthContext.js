@@ -66,8 +66,48 @@ export const AuthProvider = ({ children }) => {
         });
     };
 
+    // --- NEW FUNCTION: Increase the quantity of an item ---
+    const increaseQuantity = (itemId) => {
+        setCart((prevCart) => {
+            return prevCart.map((item) => 
+                item.id === itemId ? { ...item, quantity: item.quantity + 1 } : item
+            );
+        });
+    };
+
+    // --- NEW FUNCTION: Decrease the quantity of an item and remove if quantity is 0 ---
+    const decreaseQuantity = (itemId) => {
+        setCart((prevCart) => {
+            return prevCart.reduce((acc, item) => {
+                if (item.id === itemId) {
+                    const newQuantity = item.quantity - 1;
+                    // Only keep the item if the new quantity is greater than 0
+                    if (newQuantity > 0) {
+                        acc.push({ ...item, quantity: newQuantity });
+                    }
+                    // If newQuantity is 0, the item is simply not pushed back into the accumulator (acc)
+                } else {
+                    // Keep all other items unchanged
+                    acc.push(item);
+                }
+                return acc;
+            }, []);
+        });
+    };
+
     return (
-        <AuthContext.Provider value={{ user, token, login, logout, cart, setCart, addToCart, loading }}>
+        <AuthContext.Provider value={{ 
+            user, 
+            token, 
+            login, 
+            logout, 
+            cart, 
+            setCart, 
+            addToCart, 
+            increaseQuantity, // Exposed the new function
+            decreaseQuantity, // Exposed the new function
+            loading 
+        }}>
             {children}
         </AuthContext.Provider>
     );
