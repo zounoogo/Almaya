@@ -1,36 +1,53 @@
+// src/components/OfferCard.js (Code mis à jour)
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 // Importation du vrai hook de contexte de panier (AuthContext.js)
-// Ajout de increaseQuantity et decreaseQuantity au destructuring
 import { useAuth } from '../contexts/AuthContext';
 
 // Les props doivent inclure increaseQuantity et decreaseQuantity (passées par LocationOffersPage)
+// MODIFICATION : Les fonctions passées doivent maintenant gérer le scroll.
 const OfferCard = ({ offer, cartItem, increaseQuantity, decreaseQuantity }) => {
-    // 1. Définition des états locaux
     const [message, setMessage] = useState(null);
+    const { addToCart } = useAuth(); 
 
-    // 2. Utilisation du contexte pour les fonctions de panier
-    // Récupération de addToCart, increaseQuantity et decreaseQuantity du contexte
-    const { addToCart } = useAuth(); // Note: decrease/increase are also passed as props from parent for this component
-
-    // Vérifiez que l'objet 'offer' est bien passé
     if (!offer) return null;
 
-    // 3. Définition de la fonction locale handleAddToCart
-    const handleAddToCart = (offer) => {
-        // Appelle la fonction addToCart du Contexte Global
-        addToCart(offer);
-        setMessage(`L'offre "${offer.title}" a été ajoutée au panier !`);
+    // NOUVEAU : Fonction utilitaire pour gérer les actions du panier (pour encapsuler le scroll)
+    const handleCartAction = (actionType, itemId, offerDetails = null) => {
+        // 1. Sauvegarde la position de défilement (de la fenêtre, avant l'update)
+        const currentScroll = window.scrollY;
 
-        // Efface le message après 3 secondes
+        // 2. Exécute l'action de modification du panier
+        switch (actionType) {
+            case 'add':
+                addToCart(offerDetails);
+                setMessage(`L'offre "${offerDetails.title}" a été ajoutée au panier !`);
+                setTimeout(() => setMessage(null), 3000);
+                break;
+            case 'increase':
+                increaseQuantity(itemId);
+                break;
+            case 'decrease':
+                decreaseQuantity(itemId);
+                break;
+            default:
+                break;
+        }
+
+        // 3. Utilisez setTimeout pour restaurer le scroll LÉGÈREMENT après l'exécution synchrone
+        // (Ceci n'est qu'un "patch" si le parent ne gère pas le useLayoutEffect)
+        // La véritable solution est dans le parent (voir la note en bas)
         setTimeout(() => {
-            setMessage(null);
-        }, 3000);
+             // Si la position a été perdue (i.e. est revenue à 0), restaurez-la
+            if (window.scrollY < currentScroll) {
+                window.scrollTo(0, currentScroll);
+            }
+        }, 0); 
     };
 
-
     // Détermine l'URL de l'image (ajustez si votre chemin d'image est différent)
-    const imageUrl = offer.image ? `/assets/images/${offer.image}` : `https://placehold.co/400x250/505763/FFFFFF?text=${offer.title.substring(0, 15)}...`;
+    const imageUrl = offer.image ? `${offer.image}` : `https://placehold.co/400x250/505763/FFFFFF?text=${offer.title.substring(0, 15)}...`;
 
     // Formate le prix (en utilisant le DH comme devis, comme dans l'historique)
     const formattedPrice = offer.price
@@ -63,7 +80,7 @@ const OfferCard = ({ offer, cartItem, increaseQuantity, decreaseQuantity }) => {
 
                 {/* Description avec limitation de hauteur */}
                 <p className="card-text flex-grow-1 text-secondary" style={{ maxHeight: '4.5em', overflow: 'hidden' }}>
-                    {offer.description || 'Pas de description disponible.'}
+                    {offer.description || ''}
                 </p>
 
                 {/* Affichage des détails si disponibles */}
@@ -82,7 +99,7 @@ const OfferCard = ({ offer, cartItem, increaseQuantity, decreaseQuantity }) => {
                         // Affiche les boutons de quantité si l'article est dans le panier
                         <div className="d-flex align-items-center">
                             <button 
-                                onClick={() => decreaseQuantity(cartItem.id)} 
+                                onClick={() => handleCartAction('decrease', cartItem.id)} // <-- Utilisation de handleCartAction
                                 className="btn btn-sm btn-info me-2 text-white fw-bold shadow-sm"
                             >
                                 -
@@ -91,19 +108,19 @@ const OfferCard = ({ offer, cartItem, increaseQuantity, decreaseQuantity }) => {
                                 {cartItem.quantity}
                             </span>
                             <button 
-                                onClick={() => increaseQuantity(cartItem.id)} 
+                                onClick={() => handleCartAction('increase', cartItem.id)} // <-- Utilisation de handleCartAction
                                 className="btn btn-sm btn-info ms-2 text-white fw-bold shadow-sm"
                             >
                                 +
                             </button>
-                             <Link to="/cart" className="btn btn-success ms-3 fw-bold shadow-sm">
+                            <Link to="/cart" className="btn btn-success ms-3 fw-bold shadow-sm">
                                 <i className="bi bi-cart-check-fill me-1"></i> 
                             </Link>
                         </div>
                     ) : (
                         // Affiche le bouton "Ajouter au panier"
                         <button
-                            onClick={() => handleAddToCart(offer)}
+                            onClick={() => handleCartAction('add', null, offer)} // <-- Utilisation de handleCartAction
                             className="btn btn-warning mt-auto fw-bold shadow-sm"
                         >
                             <i className="bi bi-cart-plus-fill me-2"></i>

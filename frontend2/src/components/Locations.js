@@ -47,18 +47,26 @@ const Locations = () => {
       <h2 className="text-center fw-bold mb-5">Explorez nos Destinations</h2>
       <div className="row g-4 justify-content-center">
         {locations.map((location) => (
-          <div key={location.id} className="col-md-4 col-lg-3 text-center">
-            {/* Lien vers la page d'offres de cette destination.
-              Assurez-vous d'avoir une route React correspondante dans votre App.js, par exemple:
-              <Route path="/locations/:location_slug" element={<LocationOffersPage />} /> 
-            */}
+          <div key={location.id} className="col-6 col-md-4 col-lg-3 text-center">
+            {/* Lien vers la page d'offres de cette destination. */}
             <Link to={`/locations/${location.slug}`} className="text-decoration-none text-dark">
-              <div className="card h-100 p-3 shadow-sm border-0 hover-shadow-lg transition-300ms">
-                {/* Vous pouvez ajouter une icône spécifique ici si votre DB la supporte, 
-                  sinon nous utilisons le nom de la ville.
-                */}
-                <i className="bi bi-geo-alt-fill text-primary display-6 mb-2"></i>
-                <h3 className="h6 fw-bold mb-0">{location.name}</h3>
+              <div className="card h-100 p-2 shadow-sm border-0 hover-shadow-lg transition-300ms overflow-hidden">
+                {/* Affiche l'image de la destination ou un fallback */}
+                {location.image ? (
+                  <img 
+                    src={location.image} 
+                    alt={`Vue de ${location.name}`} 
+                    className="img-fluid rounded mb-3" 
+                    style={{ height: '150px', width: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  // Fallback si la colonne 'image' est NULL (affiche l'icône originale)
+                  <div className="d-flex justify-content-center align-items-center mb-3 bg-light rounded" style={{ height: '150px' }}>
+                    <i className="bi bi-geo-alt-fill text-primary display-6"></i>
+                  </div>
+                )}
+
+                <h3 className="h6 fw-bold mb-0 mt-2">{location.name}</h3>
                 {location.region && <small className="text-muted">{location.region}</small>}
               </div>
             </Link>
@@ -68,5 +76,4 @@ const Locations = () => {
     </div>
   );
 };
-
-export default Locations;
+export default React.memo(Locations);

@@ -61,7 +61,13 @@ const Categories = () => {
                         <Link to={`/categories/${category.slug}`} className="text-decoration-none text-dark">
                             <div className="card h-100 p-4 shadow-sm border-0 transition-300ms hover-shadow-lg">
                                 {/* L'icône utilise text-primary (Orange ALMAYA) */}
-                                <i className={`bi ${category.icon || 'bi-bookmark-heart-fill'} text-primary display-4 mb-3`}></i>
+                                <img 
+                                    src={category.icon} 
+                                    alt={category.name}
+                                    className="img-fluid mb-3 mx-auto d-block" 
+                                    // Style pour uniformiser l'affichage des images
+                                    style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '100%' }}
+                                />
                                 <h3 className="h5 fw-bold">{category.name}</h3>
                                 <p className="text-muted flex-grow-1">{category.description}</p>
                             </div>

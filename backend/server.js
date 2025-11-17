@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
@@ -28,7 +27,8 @@ const authenticateToken = (req, res, next) => {
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) return res.status(403).send({ message: 'Token invalide' });
-        req.user = user;
+        // req.user contient maintenant l'ID de l'utilisateur
+        req.user = user; 
         next();
     });
 };
@@ -68,6 +68,7 @@ app.post('/api/login', async (req, res) => {
             return res.status(400).send({ message: 'Email ou mot de passe incorrect.' });
         }
 
+        // Le token contient l'ID de l'utilisateur, essentiel pour le panier
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '1h' });
         res.status(200).send({ message: 'Connexion réussie !', token, user: { id: user.id, username: user.username, email: user.email, role: user.role } });
     } catch (error) {
@@ -92,8 +93,78 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 
 
 // ==========================================================
+//          ROUTES DU PANIER (NOUVELLES ROUTES)
+// ==========================================================
+
+// --- GET /api/cart: Récupérer le panier de l'utilisateur ---
+app.get('/api/cart', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        // Jointure entre CartItems et Offers pour récupérer tous les détails
+        const sqlQuery = `
+            SELECT 
+                ci.offer_id AS id, 
+                ci.quantity, 
+                o.title, 
+                o.price,
+                o.infos_price
+            FROM cartitems ci
+            JOIN offers o ON ci.offer_id = o.id
+            WHERE ci.user_id = ?
+            ORDER BY o.title
+        `;
+        const [cartItems] = await db.query(sqlQuery, [userId]);
+        
+        // Nous renvoyons un tableau d'objets structuré comme l'état React l'attend.
+        res.status(200).json({ cart: cartItems });
+    } catch (error) {
+        console.error('Erreur lors de la récupération du panier:', error);
+        res.status(500).send({ message: 'Erreur lors de la récupération du panier.' });
+    }
+});
+
+// --- PUT /api/cart: Synchroniser (mettre à jour) le panier complet ---
+app.put('/api/cart', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const { cart } = req.body; // 'cart' est le tableau d'articles reçu du frontend
+    
+    // Vérification de base
+    if (!Array.isArray(cart)) {
+        return res.status(400).send({ message: 'Format de panier invalide.' });
+    }
+
+    try {
+        // 1. Démarrer une transaction (si votre DB le supporte) ou effectuer les opérations séquentiellement
+
+        // 2. Supprimer tous les anciens articles du panier de cet utilisateur
+        await db.query('DELETE FROM cartitems WHERE user_id = ?', [userId]);
+
+        // 3. Insérer les nouveaux articles envoyés par le frontend
+        if (cart.length > 0) {
+            const values = cart.map(item => [userId, item.id, item.quantity]);
+            
+            // NOTE: Assurez-vous que item.id dans React correspond à offer_id dans la DB
+            const sqlInsert = `
+                INSERT INTO cartitems (user_id, offer_id, quantity) 
+                VALUES ?
+            `;
+            await db.query(sqlInsert, [values]);
+        }
+        
+        // 4. Succès
+        res.status(200).send({ message: 'Panier synchronisé avec succès.' });
+
+    } catch (error) {
+        console.error('Erreur lors de la synchronisation du panier:', error);
+        res.status(500).send({ message: 'Erreur lors de la synchronisation du panier.' });
+    }
+});
+
+
+// ==========================================================
 //          ROUTES DE SERVICES (CONTACT, CATÉGORIES, OFFRES, LOCATIONS)
 // ==========================================================
+// ... (Les autres routes restent inchangées) ...
 
 // --- Endpoint pour le formulaire de contact ---
 app.post('/api/contact', async (req, res) => {

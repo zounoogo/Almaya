@@ -53,6 +53,12 @@ const Profile = () => {
     return (
         <div className="container py-5">
             <h2 className="text-center mb-4">Votre Espace Personnel</h2>
+            {/* Ajout du message "En cours de construction" */}
+            <div className="alert alert-warning text-center" role="alert">
+                **Cette page est en cours de construction.** 🚧
+            </div>
+            <hr className="mb-4" />
+            {/* Fin de l'ajout */}
             {profileData ? (
                 <div className="card p-4 mx-auto" style={{ maxWidth: '500px' }}>
                     <p className="lead">Bienvenue, **{profileData.username}** !</p>

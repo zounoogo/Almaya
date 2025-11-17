@@ -18,16 +18,10 @@ const HeroSection = () => {
                             {/* ALMAYA SERVICES en Orange/Blanc, TRAVEL en Bleu pour l'accent */}
                             <span className="h4 fw-bold mb-0">ALMAYA SERVICES</span>
                             {/* Le texte-info est le Bleu ALMAYA surchargé */}
-                            <span className="small d-block text-info">TRAVEL</span> 
                         </Link>
                         
                         {/* Main Navigation Links */}
                         <ul className="list-unstyled d-flex gap-4 mb-0 d-none d-md-flex">
-                            <li>
-                                <Link to="/" className="text-white text-decoration-none opacity-75 hover-opacity-100">
-                                    Accueil
-                                </Link>
-                            </li>
                             <li>
                                 <Link to="/locations" className="text-white text-decoration-none opacity-75 hover-opacity-100">
                                     Destinations

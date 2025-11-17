@@ -1,44 +1,75 @@
-// src/contexts/AuthContext.js
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { jwtDecode } from 'jwt-decode';
 
 const AuthContext = createContext(null);
 
-// Function to retrieve the cart from localStorage
-const getCartFromLocalStorage = () => {
-    try {
-        const storedCart = localStorage.getItem('cart');
-        return storedCart ? JSON.parse(storedCart) : [];
-    } catch (error) {
-        console.error("Erreur lors de la lecture du panier depuis le localStorage:", error);
-        return [];
-    }
-};
-
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [token, setToken] = useState(localStorage.getItem('token'));
-    const [cart, setCart] = useState(getCartFromLocalStorage()); // Initialize cart from localStorage
+    const [cart, setCart] = useState([]); 
     const [loading, setLoading] = useState(true);
+
+    // Fonction pour synchroniser le panier avec le serveur
+    const syncCartToServer = async (currentCart, currentToken) => {
+        const syncToken = currentToken || token;
+        if (!syncToken) return; 
+
+        try {
+            await fetch('http://localhost:3001/api/cart', {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${syncToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ cart: currentCart }),
+            });
+        } catch (error) {
+            console.error("Échec de la synchronisation du panier avec le serveur:", error);
+        }
+    };
+
+    // Fonction pour récupérer le panier du serveur
+    const fetchUserCart = async (currentToken) => {
+        try {
+            const response = await fetch('http://localhost:3001/api/cart', {
+                headers: {
+                    'Authorization': `Bearer ${currentToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setCart(data.cart || []); 
+            } else {
+                console.error("Échec de la récupération du panier serveur. Code:", response.status);
+                setCart([]); 
+            }
+        } catch (error) {
+            console.error("Erreur lors de la récupération du panier:", error);
+            setCart([]);
+        }
+    };
+
 
     useEffect(() => {
         if (token) {
             try {
                 const decodedUser = jwtDecode(token);
                 setUser(decodedUser);
+                fetchUserCart(token); 
             } catch (error) {
                 console.error("Token invalide:", error);
                 setToken(null);
                 localStorage.removeItem('token');
             }
+        } else {
+            setUser(null);
+            setCart([]);
         }
         setLoading(false);
-    }, [token]);
+    }, [token]); 
 
-    // This effect saves the cart to localStorage whenever it changes
-    useEffect(() => {
-        localStorage.setItem('cart', JSON.stringify(cart));
-    }, [cart]);
 
     const login = (newToken) => {
         localStorage.setItem('token', newToken);
@@ -47,53 +78,68 @@ export const AuthProvider = ({ children }) => {
 
     const logout = () => {
         localStorage.removeItem('token');
-        localStorage.removeItem('cart'); // Clear the cart from localStorage on logout
         setToken(null);
         setUser(null);
-        setCart([]); // Reset the cart state
+        setCart([]); 
     };
 
     const addToCart = (item) => {
         setCart((prevCart) => {
             const existingItem = prevCart.find((cartItem) => cartItem.id === item.id);
+            let newCart;
+
             if (existingItem) {
-                return prevCart.map((cartItem) =>
+                newCart = prevCart.map((cartItem) =>
                     cartItem.id === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem
                 );
             } else {
-                return [...prevCart, { ...item, quantity: 1 }];
+                newCart = [...prevCart, { ...item, quantity: 1 }];
             }
+            
+            syncCartToServer(newCart); 
+            return newCart;
         });
     };
 
-    // --- NEW FUNCTION: Increase the quantity of an item ---
     const increaseQuantity = (itemId) => {
         setCart((prevCart) => {
-            return prevCart.map((item) => 
+            const newCart = prevCart.map((item) => 
                 item.id === itemId ? { ...item, quantity: item.quantity + 1 } : item
             );
+            
+            syncCartToServer(newCart); 
+            return newCart;
         });
     };
 
-    // --- NEW FUNCTION: Decrease the quantity of an item and remove if quantity is 0 ---
     const decreaseQuantity = (itemId) => {
         setCart((prevCart) => {
-            return prevCart.reduce((acc, item) => {
+            const newCart = prevCart.reduce((acc, item) => {
                 if (item.id === itemId) {
                     const newQuantity = item.quantity - 1;
-                    // Only keep the item if the new quantity is greater than 0
                     if (newQuantity > 0) {
                         acc.push({ ...item, quantity: newQuantity });
                     }
-                    // If newQuantity is 0, the item is simply not pushed back into the accumulator (acc)
                 } else {
-                    // Keep all other items unchanged
                     acc.push(item);
                 }
                 return acc;
             }, []);
+            
+            syncCartToServer(newCart); 
+            return newCart;
         });
     };
+    
+    // NOUVELLE FONCTION : Retire complètement un article du panier
+    const removeItem = (itemId) => {
+        setCart(prevCart => {
+            const newCart = prevCart.filter(item => item.id !== itemId);
+            syncCartToServer(newCart);
+            return newCart;
+        });
+    };
+    
 
     return (
         <AuthContext.Provider value={{ 
@@ -104,8 +150,9 @@ export const AuthProvider = ({ children }) => {
             cart, 
             setCart, 
             addToCart, 
-            increaseQuantity, // Exposed the new function
-            decreaseQuantity, // Exposed the new function
+            increaseQuantity, 
+            decreaseQuantity, 
+            removeItem, // EXPORTÉ MAINTENANT
             loading 
         }}>
             {children}
