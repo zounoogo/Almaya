@@ -8,9 +8,10 @@ import Profile from './components/Profile';
 import Cart from './components/Cart';
 import Locations from './components/Locations';
 import LocationOffersPage from './components/LocationOffersPage';
-import MainLayout from './components/MainLayout'; // <-- NOUVEL IMPORT DU LAYOUT
+import MainLayout from './components/MainLayout';
 import { useAuth } from './contexts/AuthContext';
 import PaidPages from './components/PaidPages';
+import VerificationSuccess from './components/VerificationSuccess'; // <-- IMPORT NOUVEAU
 
 // Composant de route protégée (inchangé)
 const ProtectedRoute = ({ children }) => {
@@ -49,6 +50,9 @@ function App() {
             {/* Routes SANS mise en page (souvent pour le plein écran comme AuthForm) */}
             <Route path="/login" element={<AuthForm />} />
             <Route path="/register" element={<AuthForm />} />
+            
+            {/* NOUVEAU : Route de succès de vérification (SANS MainLayout ou protection) */}
+            <Route path="/verification-success" element={<VerificationSuccess />} />
         </Routes>
     );
 }

@@ -1,5 +1,10 @@
+// src/components/Categories.js
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+
+// Utiliser une constante pour l'URL de l'API (pour la cohérence et le déploiement)
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 const Categories = () => {
     const [categories, setCategories] = useState([]);
@@ -9,19 +14,18 @@ const Categories = () => {
     useEffect(() => {
         const fetchCategories = async () => {
             try {
-                // L'API a été configurée pour retourner les catégories
-                const response = await fetch('http://localhost:3001/api/categories');
+                // Utilisation de la constante API_URL
+                const response = await fetch(`${API_URL}/api/categories`);
                 
                 if (!response.ok) {
                     throw new Error("Erreur lors de la récupération des catégories de l'API.");
                 }
                 
                 const data = await response.json();
-                // Le code serveur est configuré pour renvoyer (id, name, slug, icon, description)
                 setCategories(data);
             } catch (err) {
                 console.error("Fetch Error:", err);
-                setError("Impossible de charger les catégories. Veuillez vérifier le serveur.");
+                setError("Impossible de charger les catégories. Veuillez vérifier la disponibilité de l'API."); 
             } finally {
                 setLoading(false);
             }
@@ -33,7 +37,6 @@ const Categories = () => {
         return (
             <div className="container py-5 text-center">
                 <p>Chargement des catégories...</p>
-                {/* Couleur Orange ALMAYA pour le spinner */}
                 <div className="spinner-border text-primary" role="status">
                     <span className="visually-hidden">Loading...</span>
                 </div>
@@ -51,21 +54,16 @@ const Categories = () => {
 
     return (
         <div id="categories" className="container py-5">
-            {/* Titre en couleur de texte sombre par défaut */}
             <h2 className="text-center fw-bold mb-5">Nos Catégories de Services</h2>
             <div className="row g-4 justify-content-center">
                 {categories.map((category) => (
-                    // Utilisation du 'slug' pour le lien, qui est l'ID de catégorie dans l'URL
                     <div key={category.slug} className="col-md-6 col-lg-4 text-center">
-                        {/* Le texte-dark assure que le texte est en couleur sombre ALMAYA */}
                         <Link to={`/categories/${category.slug}`} className="text-decoration-none text-dark">
                             <div className="card h-100 p-4 shadow-sm border-0 transition-300ms hover-shadow-lg">
-                                {/* L'icône utilise text-primary (Orange ALMAYA) */}
                                 <img 
                                     src={category.icon} 
                                     alt={category.name}
                                     className="img-fluid mb-3 mx-auto d-block" 
-                                    // Style pour uniformiser l'affichage des images
                                     style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '100%' }}
                                 />
                                 <h3 className="h5 fw-bold">{category.name}</h3>
@@ -76,11 +74,9 @@ const Categories = () => {
                 ))}
             </div>
             
-            {/* Suggestion d'exploration par ville */}
             <div className="text-center mt-5">
                 <p className="lead">
                     Vous cherchez une activité dans une ville spécifique ? 
-                    {/* Lien en couleur Bleu ALMAYA (text-info) */}
                     <Link to="/locations" className="text-info fw-bold">Explorez par destination ici</Link>!
                 </p>
             </div>

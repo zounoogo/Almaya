@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 
 const Cart = () => {
     // Le numéro de téléphone de destination WhatsApp
-    const WHATSAPP_NUMBER = "212658810471";
+    const WHATSAPP_NUMBER = "212690002284";
     
     // Récupération des fonctions du panier et de l'état du panier depuis le contexte
     const { 
