@@ -1,3 +1,5 @@
+// server.js (ou app.js)
+
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
@@ -18,30 +20,30 @@ const port = 3001;
 
 // --- 1. CORS & Cookies
 app.use(cors({
-    origin: 'http://localhost:3000', 
-    credentials: true, 
+    origin: 'http://localhost:3000', 
+    credentials: true, 
 }));
 app.use(express.json());
-app.use(cookieParser()); 
+app.use(cookieParser()); 
 
-const JWT_SECRET = process.env.JWT_SECRET || 'UTILISEZ_UNE_CLE_SECRETE_FORTE_EN_PROD'; 
+const JWT_SECRET = process.env.JWT_SECRET || 'UTILISEZ_UNE_CLE_SECRETE_FORTE_EN_PROD'; 
 
 // --- 2. Rate Limiting (Anti-Brute Force)
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, 
-    max: 5, 
+    windowMs: 15 * 60 * 1000, 
+    max: 5, 
     message: 'Trop de tentatives. Veuillez réessayer après 15 minutes.',
     standardHeaders: true,
     legacyHeaders: false,
 });
 
 // ==========================================================
-//          FONCTIONS DE VÉRIFICATION EMAIL
+//          FONCTIONS DE VÉRIFICATION EMAIL
 // ==========================================================
 
 /**
- * Génère un jeton cryptographiquement sécurisé.
- */
+ * Génère un jeton cryptographiquement sécurisé.
+ */
 const generateVerificationToken = () => {
     return crypto.randomBytes(32).toString('hex');
 };
@@ -50,17 +52,17 @@ const generateVerificationToken = () => {
 const transporter = nodemailer.createTransport({
     service: process.env.EMAIL_SERVICE || 'gmail',
     auth: {
-        user: process.env.EMAIL_USER, 
+        user: process.env.EMAIL_USER, 
         pass: process.env.EMAIL_PASS
     }
 });
 
 /**
- * Envoie l'email de vérification à l'utilisateur.
- */
+ * Envoie l'email de vérification à l'utilisateur.
+ */
 const sendVerificationEmail = async (userEmail, token) => {
     // Le lien doit pointer vers la route de vérification de CETTE API
-    const verificationLink = `http://localhost:3001/api/verify-email?token=${token}`; 
+    const verificationLink = `http://localhost:3001/api/verify-email?token=${token}`; 
 
     const mailOptions = {
         from: process.env.EMAIL_USER,
@@ -83,32 +85,55 @@ const sendVerificationEmail = async (userEmail, token) => {
 
 
 // ==========================================================
-//          MIDDLEWARE D'AUTHENTIFICATION
+//          MIDDLEWARE D'AUTHENTIFICATION & AUTORISATION
 // ==========================================================
 
 const authenticateToken = (req, res, next) => {
-    const token = req.cookies.token; 
-    
+    const token = req.cookies.token; 
+    
     if (token == null) return res.status(401).send({ message: 'Accès non autorisé : Token manquant.' });
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) {
-            res.clearCookie('token'); 
+            res.clearCookie('token'); 
             return res.status(403).send({ message: 'Session expirée ou Token invalide.' });
         }
-        req.user = user; 
+        req.user = user; 
         next();
     });
 };
 
+/**
+ * Vérifie si l'utilisateur authentifié a le rôle requis.
+ * @param {string[]} allowedRoles - Tableau de rôles autorisés (ex: ['admin', 'manager'])
+ */
+const authorizeRole = (allowedRoles) => {
+    return (req, res, next) => {
+        // L'utilisateur (req.user) doit avoir été défini par authenticateToken avant
+        if (!req.user || !req.user.role) {
+            return res.status(401).send({ message: 'Erreur d\'authentification : Rôle non trouvé.' });
+        }
+        
+        const userRole = req.user.role;
+        
+        if (allowedRoles.includes(userRole)) {
+            next(); // L'utilisateur est autorisé
+        } else {
+            // Statut 403 Forbidden : L'utilisateur est connu mais n'a pas les droits.
+            return res.status(403).send({ message: 'Accès refusé : Vous n\'avez pas les permissions nécessaires.' });
+        }
+    };
+};
+
+
 // ==========================================================
-//          ROUTES D'AUTHENTIFICATION & VÉRIFICATION
+//          ROUTES D'AUTHENTIFICATION & VÉRIFICATION
 // ==========================================================
 
 // --- 1. Endpoint d'inscription (Création du compte non vérifié)
 app.post('/api/register', authLimiter, async (req, res) => {
     const { username, email, password } = req.body;
-    
+    
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
         const verificationToken = generateVerificationToken();
@@ -120,13 +145,13 @@ app.post('/api/register', authLimiter, async (req, res) => {
 
         try {
             await sendVerificationEmail(email, verificationToken);
-            res.status(201).send({ 
-                message: 'Inscription réussie ! Veuillez vérifier votre boîte de réception pour activer votre compte.' 
+            res.status(201).send({ 
+                message: 'Inscription réussie ! Veuillez vérifier votre boîte de réception pour activer votre compte.' 
             });
         } catch (emailError) {
             console.error('Erreur lors de l\'envoi de l\'email de vérification:', emailError);
-            res.status(202).send({ 
-                message: 'Inscription réussie, mais échec de l\'envoi de l\'e-mail. Veuillez contacter le support.' 
+            res.status(202).send({ 
+                message: 'Inscription réussie, mais échec de l\'envoi de l\'e-mail. Veuillez contacter le support.' 
             });
         }
 
@@ -153,17 +178,17 @@ app.get('/api/verify-email', async (req, res) => {
 
         if (rows.length === 0) {
             // Redirection vers la page de login avec un message d'erreur si le token est invalide/expiré
-            return res.redirect('http://localhost:3000/login?error=invalid_token'); 
+            return res.redirect('http://localhost:3000/login?error=invalid_token'); 
         }
 
         const userId = rows[0].id;
-        
+        
         // Met à jour le statut et efface le jeton
         const updateSql = 'UPDATE users SET isVerified = TRUE, verificationToken = NULL WHERE id = ?';
         await db.query(updateSql, [userId]);
 
         // Redirige l'utilisateur vers la page de succès du frontend
-        res.redirect('http://localhost:3000/verification-success'); 
+        res.redirect('http://localhost:3000/verification-success'); 
 
     } catch (error) {
         console.error('Erreur lors de la vérification de l\'email:', error);
@@ -177,7 +202,7 @@ app.post('/api/login', authLimiter, async (req, res) => {
     const { email, password } = req.body;
     try {
         const [rows] = await db.query('SELECT id, username, email, password, role, isVerified FROM users WHERE email = ?', [email]);
-        
+        
         if (rows.length === 0) {
             return res.status(400).send({ message: 'Email ou mot de passe incorrect.' });
         }
@@ -185,8 +210,8 @@ app.post('/api/login', authLimiter, async (req, res) => {
 
         // VÉRIFICATION DU STATUT: BLOQUAGE SI NON VÉRIFIÉ
         if (!user.isVerified) {
-            return res.status(403).send({ 
-                message: 'Votre compte n\'est pas activé. Veuillez vérifier votre boîte de réception.' 
+            return res.status(403).send({ 
+                message: 'Votre compte n\'est pas activé. Veuillez vérifier votre boîte de réception.' 
             });
         }
 
@@ -198,12 +223,12 @@ app.post('/api/login', authLimiter, async (req, res) => {
         // Création du Token et envoi du cookie
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
         res.cookie('token', token, {
-            httpOnly: true, 
+            httpOnly: true, 
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'Lax', 
-            maxAge: 3600000 
+            sameSite: 'Strict', // Sécurité maximale
+            maxAge: 3600000 
         });
-        
+        
         res.status(200).send({ message: 'Connexion réussie !', user: { id: user.id, username: user.username, email: user.email, role: user.role } });
 
     } catch (error) {
@@ -215,15 +240,15 @@ app.post('/api/login', authLimiter, async (req, res) => {
 // --- 4. Endpoint pour renvoyer l'email de vérification
 app.post('/api/resend-verification', authLimiter, async (req, res) => {
     const { email } = req.body;
-    
+    
     try {
         const [rows] = await db.query('SELECT id, isVerified FROM users WHERE email = ?', [email]);
-        
+        
         if (rows.length === 0 || rows[0].isVerified) {
             // Sécurité: message vague pour ne pas confirmer l'existence du compte
             return res.status(200).send({ message: 'Si un compte non vérifié est associé à cet e-mail, un nouveau lien a été envoyé.' });
         }
-        
+        
         const user = rows[0];
         const newVerificationToken = generateVerificationToken();
 
@@ -249,15 +274,172 @@ app.post('/api/logout', (req, res) => {
 app.get('/api/profile', authenticateToken, async (req, res) => {
     try {
         const [rows] = await db.query('SELECT id, username, email, role, isVerified FROM users WHERE id = ? AND isVerified = TRUE', [req.user.id]);
-        
+        
         if (rows.length === 0) {
             res.clearCookie('token');
-            return res.status(403).send({ message: 'Accès refusé. Compte non vérifié ou non trouvé.' }); 
+            return res.status(403).send({ message: 'Accès refusé. Compte non vérifié ou non trouvé.' }); 
         }
         res.status(200).json(rows[0]);
     } catch (error) {
         console.error('Erreur lors de la récupération du profil:', error);
         res.status(500).send({ message: 'Erreur lors de la récupération du profil.' });
+    }
+});
+
+// ==========================================================
+//          ROUTES D'ADMINISTRATION (Rôle Admin Requis)
+// ==========================================================
+
+// --- 1. Endpoint: Récupérer tous les utilisateurs (Admin)
+app.get('/api/admin/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    try {
+        // Sélectionne les informations essentielles (ne pas exposer les hachages de mots de passe)
+        const [rows] = await db.query('SELECT id, username, email, role, isVerified FROM users');
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error('Erreur lors de la récupération de la liste des utilisateurs:', error);
+        res.status(500).send({ message: 'Erreur serveur lors de la récupération des utilisateurs.' });
+    }
+});
+
+// --- 2. Endpoint: CRUD Offres (Admin) ---
+
+// POST /api/admin/offers: Créer une nouvelle offre
+app.post('/api/admin/offers', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const { 
+        title, description, price, infos_price, image, duration, service_type_id, location_id 
+    } = req.body;
+    
+    if (!service_type_id || !location_id || !title || !description) {
+        return res.status(400).send({ message: 'Données obligatoires manquantes.' });
+    }
+
+    try {
+        const sqlInsert = `
+            INSERT INTO offers (title, description, price, infos_price, image, duration, service_type_id, location_id) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        
+        await db.query(sqlInsert, [
+            title, description, price, infos_price, image, duration, service_type_id, location_id
+        ]);
+        
+        res.status(201).send({ message: 'Offre créée avec succès.' });
+        
+    } catch (error) {
+        console.error('Erreur lors de la création de l\'offre:', error);
+        if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+             return res.status(400).send({ message: 'Catégorie ou Destination invalide.' });
+        }
+        res.status(500).send({ message: 'Erreur serveur lors de la création de l\'offre.' });
+    }
+});
+
+// PUT /api/admin/offers/:id: Modifier une offre existante 🔑 NOUVELLE ROUTE
+app.put('/api/admin/offers/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const offerId = req.params.id;
+    const { 
+        title, description, price, infos_price, image, duration, service_type_id, location_id 
+    } = req.body;
+
+    if (!offerId || !service_type_id || !location_id || !title || !description) {
+        return res.status(400).send({ message: 'Données obligatoires manquantes.' });
+    }
+
+    try {
+        const sqlUpdate = `
+            UPDATE offers 
+            SET title = ?, description = ?, price = ?, infos_price = ?, image = ?, duration = ?, service_type_id = ?, location_id = ? 
+            WHERE id = ?
+        `;
+        const [result] = await db.query(sqlUpdate, [
+            title, description, price, infos_price, image, duration, service_type_id, location_id, offerId
+        ]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).send({ message: 'Offre non trouvée ou aucune modification effectuée.' });
+        }
+        
+        res.status(200).send({ message: 'Offre mise à jour avec succès.' });
+        
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour de l\'offre:', error);
+        if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+             return res.status(400).send({ message: 'Catégorie ou Destination invalide.' });
+        }
+        res.status(500).send({ message: 'Erreur serveur lors de la mise à jour de l\'offre.' });
+    }
+});
+
+// DELETE /api/admin/offers/:id: Supprimer une offre par ID (Admin)
+app.delete('/api/admin/offers/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const offerId = req.params.id;
+    try {
+        const [result] = await db.query('DELETE FROM offers WHERE id = ?', [offerId]);
+        
+        if (result.affectedRows === 0) {
+            return res.status(404).send({ message: 'Offre non trouvée.' });
+        }
+        res.status(200).send({ message: `Offre ${offerId} supprimée avec succès.` });
+    } catch (error) {
+        console.error('Erreur lors de la suppression de l\'offre:', error);
+        res.status(500).send({ message: 'Erreur serveur lors de la suppression.' });
+    }
+});
+
+// --- 3. CRUD Destinations (Admin) ---
+
+// POST /api/admin/locations: Créer une nouvelle destination
+app.post('/api/admin/locations', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const { name, slug, region, image } = req.body;
+    try {
+        const sqlInsert = 'INSERT INTO locations (name, slug, region, image) VALUES (?, ?, ?, ?)';
+        await db.query(sqlInsert, [name, slug, region, image]);
+        res.status(201).send({ message: 'Destination créée avec succès.' });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+             return res.status(409).send({ message: 'Ce slug existe déjà pour une autre destination.' });
+        }
+        console.error('Erreur lors de la création de la destination:', error);
+        res.status(500).send({ message: 'Erreur serveur lors de la création de la destination.' });
+    }
+});
+
+// PUT /api/admin/locations/:slug: Modifier une destination existante
+app.put('/api/admin/locations/:slug', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const { name, region, image, new_slug } = req.body;
+    const oldSlug = req.params.slug;
+    try {
+        const updateSlug = new_slug || oldSlug; 
+        const sqlUpdate = 'UPDATE locations SET name = ?, slug = ?, region = ?, image = ? WHERE slug = ?';
+        const [result] = await db.query(sqlUpdate, [name, updateSlug, region, image, oldSlug]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).send({ message: 'Destination non trouvée.' });
+        }
+        res.status(200).send({ message: 'Destination mise à jour avec succès.', newSlug: updateSlug });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+             return res.status(409).send({ message: 'Le nouveau slug existe déjà.' });
+        }
+        console.error('Erreur lors de la mise à jour de la destination:', error);
+        res.status(500).send({ message: 'Erreur serveur lors de la mise à jour de la destination.' });
+    }
+});
+
+// DELETE /api/admin/locations/:slug: Supprimer une destination
+app.delete('/api/admin/locations/:slug', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const locationSlug = req.params.slug;
+    try {
+        const [result] = await db.query('DELETE FROM locations WHERE slug = ?', [locationSlug]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).send({ message: 'Destination non trouvée.' });
+        }
+        res.status(200).send({ message: `Destination ${locationSlug} supprimée avec succès.` });
+    } catch (error) {
+        console.error('Erreur lors de la suppression de la destination:', error);
+        res.status(500).send({ message: 'Erreur serveur lors de la suppression de la destination.' });
     }
 });
 
@@ -283,26 +465,26 @@ app.get('/api/cart', authenticateToken, async (req, res) => {
 // --- PUT /api/cart: Synchroniser (mettre à jour) le panier complet
 app.put('/api/cart', authenticateToken, async (req, res) => {
     const userId = req.user.id;
-    const { cart } = req.body; 
-    
+    const { cart } = req.body; 
+    
     if (!Array.isArray(cart)) {
         return res.status(400).send({ message: 'Format de panier invalide.' });
     }
 
     try {
-        // 1. Suppression des anciens articles 
+        // 1. Suppression des anciens articles 
         await db.query('DELETE FROM cartitems WHERE user_id = ?', [userId]);
 
         // 2. Insertion des nouveaux articles
         if (cart.length > 0) {
             const values = cart.map(item => [userId, item.id, item.quantity]);
-            
+            
             // Correction: Requête sur une seule ligne
             const sqlInsert = 'INSERT INTO cartitems (user_id, offer_id, quantity) VALUES ?';
-            
-            await db.query(sqlInsert, [values]); 
+            
+            await db.query(sqlInsert, [values]); 
         }
-        
+        
         res.status(200).send({ message: 'Panier synchronisé avec succès.' });
 
     } catch (error) {
@@ -313,16 +495,16 @@ app.put('/api/cart', authenticateToken, async (req, res) => {
 
 
 // ==========================================================
-//          ROUTES DE SERVICES (NON PROTÉGÉES)
+//          ROUTES DE SERVICES (NON PROTÉGÉES)
 // ==========================================================
 
 // --- Endpoint pour le formulaire de contact
 app.post('/api/contact', async (req, res) => {
     const { name, email, message } = req.body;
-    
+    
     const mailOptions = {
         from: email,
-        to: process.env.RECIPIENT_EMAIL || 'votre.email.reception@votreagence.com', 
+        to: process.env.RECIPIENT_EMAIL || 'votre.email.reception@votreagence.com', 
         subject: `Nouveau message de contact de ${name}`,
         text: `Nom: ${name}\nEmail: ${email}\n\nMessage:\n${message}`
     };
@@ -366,6 +548,32 @@ app.get('/api/categories/:category_id', async (req, res) => {
     }
 });
 
+// --- Endpoint pour récupérer les détails d'une seule offre par ID 🔑 NOUVELLE ROUTE
+app.get('/api/offers/:id', async (req, res) => {
+    const offerId = req.params.id;
+    // jointure pour obtenir le nom et le slug de la destination
+    const sqlQuery = `
+        SELECT 
+            o.*, 
+            l.name AS location_name, 
+            l.slug AS location_slug
+        FROM offers o
+        JOIN locations l ON o.location_id = l.id
+        WHERE o.id = ?
+    `;
+
+    try {
+        const [rows] = await db.query(sqlQuery, [offerId]);
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Offre non trouvée." });
+        }
+        res.status(200).json(rows[0]);
+    } catch (error) {
+        console.error('Erreur lors de la récupération de l\'offre:', error);
+        res.status(500).json({ message: "Erreur interne du serveur lors de la récupération de l'offre.", dbError: error.message });
+    }
+});
+
 
 // --- Endpoint pour récupérer les offres d'une catégorie spécifique (par slug)
 app.get('/api/categories/:category_id/offers', async (req, res) => {
@@ -375,12 +583,12 @@ app.get('/api/categories/:category_id/offers', async (req, res) => {
 
     try {
         const [offers] = await db.query(sqlQuery, [categorySlug]);
-        res.status(200).json(offers); 
+        res.status(200).json(offers); 
     } catch (error) {
         console.error('Erreur FATALE lors de la récupération des offres (Erreur DB):', error);
-        res.status(500).json({ 
-            message: "Erreur interne du serveur lors de la récupération des offres.", 
-            dbError: error.message 
+        res.status(500).json({ 
+            message: "Erreur interne du serveur lors de la récupération des offres.", 
+            dbError: error.message 
         });
     }
 });
@@ -419,19 +627,19 @@ app.get('/api/locations/:location_slug/offers', async (req, res) => {
 
     try {
         const [offers] = await db.query(sqlQuery, [locationSlug]);
-        res.status(200).json(offers); 
+        res.status(200).json(offers); 
     } catch (error) {
         console.error('Erreur FATALE lors de la récupération des offres par destination (Erreur DB):', error);
-        res.status(500).json({ 
-            message: "Erreur interne du serveur lors de la récupération des offres par destination.", 
-            dbError: error.message 
+        res.status(500).json({ 
+            message: "Erreur interne du serveur lors de la récupération des offres par destination.", 
+            dbError: error.message 
         });
     }
 });
 
 
 // ==========================================================
-//          DÉMARRAGE DU SERVEUR
+//          DÉMARRAGE DU SERVEUR
 // ==========================================================
 
 app.listen(port, () => {

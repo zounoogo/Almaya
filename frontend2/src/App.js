@@ -11,9 +11,16 @@ import LocationOffersPage from './components/LocationOffersPage';
 import MainLayout from './components/MainLayout';
 import { useAuth } from './contexts/AuthContext';
 import PaidPages from './components/PaidPages';
-import VerificationSuccess from './components/VerificationSuccess'; // <-- IMPORT NOUVEAU
+import VerificationSuccess from './components/VerificationSuccess'; 
 
-// Composant de route protégée (inchangé)
+// Importez les nouveaux composants de formulaire d'administration (à créer)
+import LocationCreateForm from './components/admin/LocationCreateForm'; // A créer
+import LocationEditForm from './components/admin/LocationEditForm';   // A créer
+import OfferCreateForm from './components/admin/OfferCreateForm';     // A créer
+import OfferEditForm from './components/admin/OfferEditForm';         // A créer
+
+
+// Composant de route protégée (pour tous les utilisateurs connectés)
 const ProtectedRoute = ({ children }) => {
     const { user } = useAuth();
     if (!user) {
@@ -21,6 +28,24 @@ const ProtectedRoute = ({ children }) => {
     }
     return children;
 };
+
+// ✅ NOUVEAU : Composant de route Admin (double protection)
+const AdminRoute = ({ children }) => {
+    const { user, isAdmin, loading } = useAuth();
+    
+    // Si la session est encore en chargement, attendez
+    if (loading) {
+        return <div className="text-center mt-5">Vérification des permissions...</div>;
+    }
+    
+    // Si l'utilisateur n'est pas connecté OU s'il n'est pas admin, rediriger vers l'accueil
+    if (!user || !isAdmin) {
+        // NOTE : On redirige vers l'accueil ou le login pour masquer l'existence des pages
+        return <Navigate to="/" replace />;
+    }
+    return children;
+};
+
 
 function App() {
     const { loading } = useAuth(); // Récupération de l'état de chargement
@@ -35,6 +60,13 @@ function App() {
             <MainLayout>{children}</MainLayout>
         </ProtectedRoute>
     );
+    
+    // ✅ NOUVEAU : Wrapper pour les routes Admin avec MainLayout
+    const AdminWrappedRoute = ({ children }) => (
+        <AdminRoute>
+            <MainLayout>{children}</MainLayout>
+        </AdminRoute>
+    );
 
     return (
         <Routes>
@@ -46,13 +78,27 @@ function App() {
             <Route path="/profile" element={<WrappedRoute><Profile /></WrappedRoute>} />
             <Route path="/cart" element={<WrappedRoute><Cart /></WrappedRoute>} />
             <Route path="/paidpages" element={<WrappedRoute><PaidPages /></WrappedRoute>} />
+            
+            {/* ======================================= */}
+            {/* ✅ ROUTES D'ADMINISTRATION PROTÉGÉES */}
+            {/* ======================================= */}
 
+            {/* Destinations CRUD */}
+            <Route path="/admin/locations/create" element={<AdminWrappedRoute><LocationCreateForm /></AdminWrappedRoute>} />
+            <Route path="/admin/locations/edit/:slug" element={<AdminWrappedRoute><LocationEditForm /></AdminWrappedRoute>} />
+
+            {/* Offres CRUD */}
+            <Route path="/admin/offers/create" element={<AdminWrappedRoute><OfferCreateForm /></AdminWrappedRoute>} />
+            <Route path="/admin/offers/edit/:id" element={<AdminWrappedRoute><OfferEditForm /></AdminWrappedRoute>} />
+            
+            {/* ======================================= */}
             {/* Routes SANS mise en page (souvent pour le plein écran comme AuthForm) */}
             <Route path="/login" element={<AuthForm />} />
             <Route path="/register" element={<AuthForm />} />
-            
-            {/* NOUVEAU : Route de succès de vérification (SANS MainLayout ou protection) */}
             <Route path="/verification-success" element={<VerificationSuccess />} />
+            
+            {/* Route Catch-all (si vous en avez besoin) */}
+            <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     );
 }

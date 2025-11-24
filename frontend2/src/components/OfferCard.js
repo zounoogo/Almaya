@@ -5,14 +5,43 @@ import { Link } from 'react-router-dom';
 // Importation du vrai hook de contexte de panier (AuthContext.js)
 import { useAuth } from '../contexts/AuthContext';
 
-// Les props doivent inclure increaseQuantity et decreaseQuantity (passées par LocationOffersPage)
-// MODIFICATION : Les fonctions passées doivent maintenant gérer le scroll.
-const OfferCard = ({ offer, cartItem, increaseQuantity, decreaseQuantity }) => {
+// MODIFICATION: Ajout de la prop 'isAdmin'
+const OfferCard = ({ offer, cartItem, increaseQuantity, decreaseQuantity, isAdmin }) => {
     const [message, setMessage] = useState(null);
     const { addToCart } = useAuth(); 
 
     if (!offer) return null;
 
+    // --- Fonction de suppression pour l'Admin ---
+    const handleDeleteOffer = async (offerId, offerTitle) => {
+        if (!window.confirm(`Êtes-vous sûr de vouloir supprimer l'offre "${offerTitle}" ? Cette action est irréversible et nécessite le rôle Admin.`)) {
+            return;
+        }
+
+        try {
+            // Utilisation du endpoint DELETE protégé par authorizeRole(['admin'])
+            const response = await fetch(`http://localhost:3001/api/admin/offers/${offerId}`, {
+                method: 'DELETE',
+                credentials: 'include', // Nécessaire pour envoyer le cookie JWT
+            });
+
+            if (response.ok) {
+                alert(`Offre ${offerTitle} supprimée avec succès. Veuillez recharger la page pour mettre la liste à jour.`);
+                // Note: La liste des offres doit être re-fetchee dans LocationOffersPage pour une mise à jour propre.
+            } else if (response.status === 403) {
+                 alert("Erreur: Vous n'avez pas la permission de supprimer cette offre.");
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Échec de la suppression de l\'offre.');
+            }
+        } catch (err) {
+            console.error("Delete Error:", err);
+            setMessage(`Erreur: ${err.message || "Problème lors de la suppression."}`);
+            setTimeout(() => setMessage(null), 5000);
+        }
+    };
+    
+    
     // NOUVEAU : Fonction utilitaire pour gérer les actions du panier (pour encapsuler le scroll)
     const handleCartAction = (actionType, itemId, offerDetails = null) => {
         // 1. Sauvegarde la position de défilement (de la fenêtre, avant l'update)
@@ -36,10 +65,8 @@ const OfferCard = ({ offer, cartItem, increaseQuantity, decreaseQuantity }) => {
         }
 
         // 3. Utilisez setTimeout pour restaurer le scroll LÉGÈREMENT après l'exécution synchrone
-        // (Ceci n'est qu'un "patch" si le parent ne gère pas le useLayoutEffect)
-        // La véritable solution est dans le parent (voir la note en bas)
         setTimeout(() => {
-             // Si la position a été perdue (i.e. est revenue à 0), restaurez-la
+            // Si la position a été perdue (i.e. est revenue à 0), restaurez-la
             if (window.scrollY < currentScroll) {
                 window.scrollTo(0, currentScroll);
             }
@@ -56,12 +83,36 @@ const OfferCard = ({ offer, cartItem, increaseQuantity, decreaseQuantity }) => {
 
     return (
         <div
-            className="card h-100 shadow-sm border-0 offer-card-hover"
+            className="card h-100 shadow-sm border-0 offer-card-hover position-relative" // Ajout de position-relative
             style={{
                 transition: 'transform 0.2s, box-shadow 0.2s',
                 cursor: 'pointer',
             }}
         >
+            
+            {/* ✅ ZONE ADMIN : Boutons d'édition/suppression */}
+            {isAdmin && (
+                <div className="position-absolute top-0 end-0 p-2 z-1">
+                    {/* Bouton Éditer (Redirige vers un formulaire d'édition) */}
+                    <Link 
+                        to={`/admin/offers/edit/${offer.id}`} 
+                        className="btn btn-sm btn-info me-2 text-white"
+                        title="Modifier l'offre"
+                    >
+                        <i className="bi bi-pencil"></i>
+                    </Link>
+                    {/* Bouton Supprimer */}
+                    <button 
+                        className="btn btn-sm btn-danger" 
+                        title="Supprimer l'offre"
+                        onClick={() => handleDeleteOffer(offer.id, offer.title)}
+                    >
+                        <i className="bi bi-trash"></i>
+                    </button>
+                </div>
+            )}
+            {/* FIN ZONE ADMIN */}
+
             <img
                 src={imageUrl}
                 className="card-img-top"

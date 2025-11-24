@@ -1,19 +1,20 @@
-// src/components/LocationOffersPages
-import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom'; // Import de Link et useNavigate
-import OfferCard from './OfferCard'; // Assurez-vous d'avoir un composant OfferCard pour l'affichage
+// src/components/LocationOffersPage.js
+import React, { useState, useEffect, useCallback } from 'react'; // ✅ Ajout de useCallback
+import { useParams, Link, useNavigate } from 'react-router-dom'; 
+import OfferCard from './OfferCard'; 
 import { useAuth } from '../contexts/AuthContext'; 
 
 const LocationOffersPage = () => {
     // Hook pour la navigation programmatique (Retour en arrière)
     const navigate = useNavigate();
     
-    // Accès aux fonctions et données du panier via useAuth
+    // Accès aux fonctions, données du panier et statut Admin via useAuth
     const { 
+        isAdmin, // Statut Admin
         cart, 
-        addToCart, 
+        // addToCart est retiré de la déstructuration pour corriger l'avertissement ESLint
         increaseQuantity, 
-        decreaseQuantity // Fonctions nécessaires pour les boutons + et -
+        decreaseQuantity 
     } = useAuth();
     
     // Récupère le slug de la destination depuis l'URL (ex: 'marrakech')
@@ -26,52 +27,49 @@ const LocationOffersPage = () => {
 
     // Fonction de retour en arrière (vers la liste des destinations)
     const handleGoBack = () => {
-        // Redirige vers la route /locations (la liste des destinations)
         navigate('/locations'); 
     };
-    
-    // NOTE: handleAddToCart n'est plus utilisé ici car l'OfferCard gère l'ajout/modification du panier.
-    // L'OfferCard utilise ses propres props increase/decreaseQuantity et addToCart du useAuth.
 
-    useEffect(() => {
-        const fetchLocationData = async () => {
-            setLoading(true);
-            setError(null);
-            
-            try {
-                // 1. Récupérer le nom complet de la destination
-                const nameResponse = await fetch(`http://localhost:3001/api/locations/${location_slug}`);
-                if (!nameResponse.ok) {
-                    throw new Error("Destination non trouvée (404)");
-                }
-                const locationData = await nameResponse.json();
-                setLocationName(locationData.name);
-
-                // 2. Récupérer les offres spécifiques à cette destination
-                const offersResponse = await fetch(`http://localhost:3001/api/locations/${location_slug}/offers`);
-                if (!offersResponse.ok) {
-                    throw new Error("Erreur lors de la récupération des offres.");
-                }
-                const offersData = await offersResponse.json();
-                setOffers(offersData);
-
-            } catch (err) {
-                console.error("Erreur de chargement:", err);
-                // Si l'erreur est liée à une destination non trouvée
-                if (err.message.includes("404")) {
-                     setError(`La destination "${location_slug}" n'existe pas ou n'a pas d'offres.`);
-                } else {
-                     setError("Impossible de charger les activités. Vérifiez la connexion API.");
-                }
-            } finally {
-                setLoading(false);
+    // ✅ NOUVEAU : Stabilisation de fetchLocationData avec useCallback
+    const fetchLocationData = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        
+        try {
+            // 1. Récupérer le nom complet de la destination
+            const nameResponse = await fetch(`http://localhost:3001/api/locations/${location_slug}`);
+            if (!nameResponse.ok) {
+                throw new Error("Destination non trouvée (404)");
             }
-        };
+            const locationData = await nameResponse.json();
+            setLocationName(locationData.name);
 
+            // 2. Récupérer les offres spécifiques à cette destination
+            const offersResponse = await fetch(`http://localhost:3001/api/locations/${location_slug}/offers`);
+            if (!offersResponse.ok) {
+                throw new Error("Erreur lors de la récupération des offres.");
+            }
+            const offersData = await offersResponse.json();
+            setOffers(offersData);
+
+        } catch (err) {
+            console.error("Erreur de chargement:", err);
+            if (err.message.includes("404")) {
+                 setError(`La destination "${location_slug}" n'existe pas ou n'a pas d'offres.`);
+            } else {
+                 setError("Impossible de charger les activités. Vérifiez la connexion API.");
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, [location_slug]); // fetchLocationData ne change que si location_slug change.
+
+
+    useEffect(() => { // ✅ Ligne 71 de l'avertissement d'origine
         if (location_slug) {
             fetchLocationData();
         }
-    }, [location_slug]); // Re-déclenchement si le slug change
+    }, [location_slug, fetchLocationData]); // ✅ fetchLocationData est maintenant dans les dépendances
 
     if (loading) {
         return <div className="container py-5 text-center"><p>Chargement des activités pour {location_slug}...</p></div>;
@@ -81,13 +79,22 @@ const LocationOffersPage = () => {
         return <div className="container py-5 text-center text-danger"><p>Erreur: {error}</p></div>;
     }
 
-    // Le titre utilise le nom complet de la ville récupéré
     const title = locationName ? `Activités à ${locationName}` : 'Activités par Destination';
 
     return (
         <div className="container py-5">
-            <h1 className="text-center fw-bold mb-5">{title}</h1>
+            <h1 className="text-center fw-bold mb-3">{title}</h1>
             
+            {/* BOUTON AJOUTER UNE OFFRE - Visible seulement par l'admin */}
+            {isAdmin && (
+                <div className="text-center mb-5">
+                    {/* Le lien vers la création d'offre devrait préremplir la destination */}
+                    <Link to={`/admin/offers/create?location=${location_slug}`} className="btn btn-warning">
+                        <i className="bi bi-plus-circle me-2"></i> Ajouter une offre à {locationName}
+                    </Link>
+                </div>
+            )}
+
             {offers.length === 0 ? (
                 <div className="alert alert-info text-center">
                     Désolé, aucune activité n'est actuellement disponible pour **{locationName}**.
@@ -100,20 +107,16 @@ const LocationOffersPage = () => {
 
                         return (
                             <div key={offer.id} className="col">
-                                {/* OfferCard est responsable du rendu complet des boutons. 
-                                    Nous lui repassons toutes les fonctions nécessaires.
-                                */}
                                 <OfferCard 
                                     offer={offer}
                                     cartItem={cartItem} 
-                                    increaseQuantity={increaseQuantity} // Re-passer les fonctions au composant enfant
-                                    decreaseQuantity={decreaseQuantity} // Re-passer les fonctions au composant enfant
+                                    increaseQuantity={increaseQuantity} 
+                                    decreaseQuantity={decreaseQuantity} 
+                                    // Passer le statut Admin à l'OfferCard
+                                    isAdmin={isAdmin}
+                                    // Optionnel : Passer fetchLocationData pour rafraîchir après une suppression
+                                    onOfferDeleted={fetchLocationData} 
                                 />
-                                
-                                {/* *** LA LOGIQUE DUPLIQUÉE A ÉTÉ RETIRÉE D'ICI ***
-                                    Elle doit résider uniquement dans OfferCard.js 
-                                */}
-
                             </div>
                         )
                     })}
