@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext'; // ✅ Import du hook d'auth
 
 // Utiliser une constante pour l'URL de l'API (pour la cohérence et le déploiement)
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
@@ -11,10 +12,41 @@ const Categories = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    // ✅ Récupération du statut Admin
+    const { isAdmin } = useAuth(); 
+
+    // --- Fonction de suppression pour l'Admin ---
+    const handleDeleteCategory = async (categorySlug, categoryName) => {
+        if (!window.confirm(`Êtes-vous sûr de vouloir supprimer la catégorie "${categoryName}" ? (Ceci peut affecter les offres liées!)`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/api/admin/categories/${categorySlug}`, {
+                method: 'DELETE',
+                credentials: 'include',
+            });
+
+            if (response.ok) {
+                // Mettre à jour l'état local pour retirer la catégorie
+                setCategories(prev => prev.filter(cat => cat.slug !== categorySlug));
+                alert(`Catégorie ${categoryName} supprimée !`);
+            } else if (response.status === 403) {
+                 alert("Erreur: Vous n'avez pas la permission de supprimer cette catégorie.");
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Échec de la suppression.');
+            }
+        } catch (err) {
+            console.error("Delete Error:", err);
+            setError(err.message || "Erreur lors de la suppression de la catégorie.");
+        }
+    };
+
+
     useEffect(() => {
         const fetchCategories = async () => {
             try {
-                // Utilisation de la constante API_URL
                 const response = await fetch(`${API_URL}/api/categories`);
                 
                 if (!response.ok) {
@@ -55,11 +87,46 @@ const Categories = () => {
     return (
         <div id="categories" className="container py-5">
             <h2 className="text-center fw-bold mb-5">Nos Catégories de Services</h2>
+
+            {/* ✅ ZONE ADMIN : Bouton Ajouter Catégorie */}
+            {isAdmin && (
+                <div className="text-center mb-4">
+                    <Link to="/admin/categories/create" className="btn btn-success">
+                        <i className="bi bi-plus-circle me-2"></i> Ajouter une Nouvelle Catégorie
+                    </Link>
+                </div>
+            )}
+
             <div className="row g-4 justify-content-center">
                 {categories.map((category) => (
                     <div key={category.slug} className="col-md-6 col-lg-4 text-center">
-                        <Link to={`/categories/${category.slug}`} className="text-decoration-none text-dark">
-                            <div className="card h-100 p-4 shadow-sm border-0 transition-300ms hover-shadow-lg">
+                        <div className="card h-100 p-4 shadow-sm border-0 transition-300ms hover-shadow-lg position-relative">
+                            
+                            {/* ✅ ZONE ADMIN : Boutons Modifier/Supprimer Catégorie */}
+                            {isAdmin && (
+                                <div className="position-absolute top-0 end-0 p-2 z-1">
+                                    <Link 
+                                        to={`/admin/categories/edit/${category.slug}`} 
+                                        className="btn btn-sm btn-primary me-2"
+                                        title="Modifier la catégorie"
+                                        onClick={(e) => e.stopPropagation()} // Empêche la navigation sous-jacente
+                                    >
+                                        <i className="bi bi-pencil"></i>
+                                    </Link>
+                                    <button 
+                                        className="btn btn-sm btn-danger" 
+                                        title="Supprimer la catégorie"
+                                        onClick={(e) => { 
+                                            e.stopPropagation(); // Empêche la navigation
+                                            handleDeleteCategory(category.slug, category.name); 
+                                        }}
+                                    >
+                                        <i className="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            )}
+
+                            <Link to={`/categories/${category.slug}`} className="text-decoration-none text-dark">
                                 <img 
                                     src={category.icon} 
                                     alt={category.name}
@@ -68,8 +135,8 @@ const Categories = () => {
                                 />
                                 <h3 className="h5 fw-bold">{category.name}</h3>
                                 <p className="text-muted flex-grow-1">{category.description}</p>
-                            </div>
-                        </Link>
+                            </Link>
+                        </div>
                     </div>
                 ))}
             </div>

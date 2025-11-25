@@ -1,14 +1,13 @@
 // src/components/Locations.js
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext'; // Import requis
+import { useAuth } from '../contexts/AuthContext'; 
 
 const Locations = () => {
     const [locations, setLocations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // ✅ Récupère isAdmin depuis le contexte d'authentification
     const { isAdmin } = useAuth(); 
 
     // --- Fonction de suppression pour l'Admin ---
@@ -18,14 +17,12 @@ const Locations = () => {
         }
 
         try {
-            // Utilisation du endpoint DELETE protégé par authorizeRole(['admin'])
             const response = await fetch(`http://localhost:3001/api/admin/locations/${locationSlug}`, {
                 method: 'DELETE',
-                credentials: 'include', // Nécessaire pour envoyer le cookie JWT
+                credentials: 'include', 
             });
 
             if (response.ok) {
-                // Mettre à jour l'état local pour retirer la destination
                 setLocations(prev => prev.filter(loc => loc.slug !== locationSlug));
                 alert(`Destination ${locationName} supprimée !`);
             } else if (response.status === 403) {
@@ -88,7 +85,7 @@ const Locations = () => {
         <div id="locations" className="container py-5">
             <h2 className="text-center fw-bold mb-5">Explorez nos Destinations</h2>
             
-            {/* ✅ BOUTON AJOUTER UNE DESTINATION - Visible seulement par l'admin */}
+            {/* BOUTON AJOUTER UNE DESTINATION - Visible seulement par l'admin */}
             {isAdmin && (
                 <div className="text-center mb-5">
                     <Link to="/admin/locations/create" className="btn btn-success">
@@ -103,14 +100,14 @@ const Locations = () => {
                         <Link to={`/locations/${location.slug}`} className="text-decoration-none text-dark">
                             <div className="card h-100 p-2 shadow-sm border-0 hover-shadow-lg transition-300ms overflow-hidden position-relative">
                                 
-                                {/* ✅ BOUTONS ADMIN SUR LA CARTE */}
+                                {/* BOUTONS ADMIN SUR LA CARTE */}
                                 {isAdmin && (
                                     <div className="position-absolute top-0 end-0 p-2 z-1">
                                         {/* Bouton Éditer */}
                                         <Link 
                                             to={`/admin/locations/edit/${location.slug}`} 
                                             className="btn btn-sm btn-primary me-2"
-                                            onClick={(e) => e.stopPropagation()} // Empêche la navigation vers la destination
+                                            onClick={(e) => e.stopPropagation()} 
                                         >
                                             <i className="bi bi-pencil"></i>
                                         </Link>
@@ -119,7 +116,7 @@ const Locations = () => {
                                             className="btn btn-sm btn-danger" 
                                             onClick={(e) => { 
                                                 e.preventDefault(); 
-                                                e.stopPropagation(); // Empêche la navigation
+                                                e.stopPropagation(); 
                                                 handleDeleteLocation(location.slug, location.name); 
                                             }}
                                         >
@@ -128,16 +125,15 @@ const Locations = () => {
                                     </div>
                                 )}
 
-                                {/* Affiche l'image de la destination ou un fallback */}
-                                {location.image ? (
+                                {/* AFFICHAGE CORRIGÉ DE L'IMAGE AVEC FALLBACK */}
+                                {location.image ? ( // Si location.image existe (URL valide)
                                     <img 
                                         src={location.image} 
                                         alt={`Vue de ${location.name}`} 
                                         className="img-fluid rounded mb-3" 
                                         style={{ height: '150px', width: '100%', objectFit: 'cover' }}
                                     />
-                                ) : (
-                                    // Fallback si la colonne 'image' est NULL (affiche l'icône originale)
+                                ) : ( // Sinon (NULL ou vide), affiche le fallback de l'icône
                                     <div className="d-flex justify-content-center align-items-center mb-3 bg-light rounded" style={{ height: '150px' }}>
                                         <i className="bi bi-geo-alt-fill text-primary display-6"></i>
                                     </div>

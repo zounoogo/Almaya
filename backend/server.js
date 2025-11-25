@@ -1,5 +1,3 @@
-// server.js (ou app.js)
-
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
@@ -8,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const crypto = require('crypto');
-const db = require('./db'); // Assurez-vous que ce fichier gère la connexion à votre DB
+const db = require('./db'); 
 require('dotenv').config();
 
 const app = express();
@@ -37,18 +35,12 @@ const authLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-// ==========================================================
-//          FONCTIONS DE VÉRIFICATION EMAIL
-// ==========================================================
+// [FONCTIONS DE VÉRIFICATION EMAIL INCHANGÉES]
 
-/**
- * Génère un jeton cryptographiquement sécurisé.
- */
 const generateVerificationToken = () => {
     return crypto.randomBytes(32).toString('hex');
 };
 
-// Configuration du transporteur Nodemailer
 const transporter = nodemailer.createTransport({
     service: process.env.EMAIL_SERVICE || 'gmail',
     auth: {
@@ -57,11 +49,7 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-/**
- * Envoie l'email de vérification à l'utilisateur.
- */
 const sendVerificationEmail = async (userEmail, token) => {
-    // Le lien doit pointer vers la route de vérification de CETTE API
     const verificationLink = `http://localhost:3001/api/verify-email?token=${token}`; 
 
     const mailOptions = {
@@ -103,13 +91,8 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-/**
- * Vérifie si l'utilisateur authentifié a le rôle requis.
- * @param {string[]} allowedRoles - Tableau de rôles autorisés (ex: ['admin', 'manager'])
- */
 const authorizeRole = (allowedRoles) => {
     return (req, res, next) => {
-        // L'utilisateur (req.user) doit avoir été défini par authenticateToken avant
         if (!req.user || !req.user.role) {
             return res.status(401).send({ message: 'Erreur d\'authentification : Rôle non trouvé.' });
         }
@@ -130,29 +113,25 @@ const authorizeRole = (allowedRoles) => {
 //          ROUTES D'AUTHENTIFICATION & VÉRIFICATION
 // ==========================================================
 
-// --- 1. Endpoint d'inscription (Création du compte non vérifié)
+// [ROUTES AUTH INCHANGÉES]
+
 app.post('/api/register', authLimiter, async (req, res) => {
     const { username, email, password } = req.body;
-    
+    
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
         const verificationToken = generateVerificationToken();
 
-        // Correction DÉFINITIVE: Requête sur une seule ligne
         const sql = 'INSERT INTO users (username, email, password, role, isVerified, verificationToken) VALUES (?, ?, ?, "customer", FALSE, ?)';
 
         await db.query(sql, [username, email, hashedPassword, verificationToken]);
 
         try {
             await sendVerificationEmail(email, verificationToken);
-            res.status(201).send({ 
-                message: 'Inscription réussie ! Veuillez vérifier votre boîte de réception pour activer votre compte.' 
-            });
+            res.status(201).send({ message: 'Inscription réussie ! Veuillez vérifier votre boîte de réception pour activer votre compte.' });
         } catch (emailError) {
             console.error('Erreur lors de l\'envoi de l\'email de vérification:', emailError);
-            res.status(202).send({ 
-                message: 'Inscription réussie, mais échec de l\'envoi de l\'e-mail. Veuillez contacter le support.' 
-            });
+            res.status(202).send({ message: 'Inscription réussie, mais échec de l\'envoi de l\'e-mail. Veuillez contacter le support.' });
         }
 
     } catch (error) {
@@ -164,7 +143,6 @@ app.post('/api/register', authLimiter, async (req, res) => {
     }
 });
 
-// --- 2. Endpoint de Vérification (Activation du compte)
 app.get('/api/verify-email', async (req, res) => {
     const { token } = req.query;
 
@@ -177,17 +155,14 @@ app.get('/api/verify-email', async (req, res) => {
         const [rows] = await db.query(sql, [token]);
 
         if (rows.length === 0) {
-            // Redirection vers la page de login avec un message d'erreur si le token est invalide/expiré
             return res.redirect('http://localhost:3000/login?error=invalid_token'); 
         }
 
         const userId = rows[0].id;
         
-        // Met à jour le statut et efface le jeton
         const updateSql = 'UPDATE users SET isVerified = TRUE, verificationToken = NULL WHERE id = ?';
         await db.query(updateSql, [userId]);
 
-        // Redirige l'utilisateur vers la page de succès du frontend
         res.redirect('http://localhost:3000/verification-success'); 
 
     } catch (error) {
@@ -196,8 +171,6 @@ app.get('/api/verify-email', async (req, res) => {
     }
 });
 
-
-// --- 3. Endpoint de Connexion (Bloque les comptes non vérifiés)
 app.post('/api/login', authLimiter, async (req, res) => {
     const { email, password } = req.body;
     try {
@@ -208,11 +181,8 @@ app.post('/api/login', authLimiter, async (req, res) => {
         }
         const user = rows[0];
 
-        // VÉRIFICATION DU STATUT: BLOQUAGE SI NON VÉRIFIÉ
         if (!user.isVerified) {
-            return res.status(403).send({ 
-                message: 'Votre compte n\'est pas activé. Veuillez vérifier votre boîte de réception.' 
-            });
+            return res.status(403).send({ message: 'Votre compte n\'est pas activé. Veuillez vérifier votre boîte de réception.' });
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -220,12 +190,11 @@ app.post('/api/login', authLimiter, async (req, res) => {
             return res.status(400).send({ message: 'Email ou mot de passe incorrect.' });
         }
 
-        // Création du Token et envoi du cookie
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
         res.cookie('token', token, {
             httpOnly: true, 
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'Strict', // Sécurité maximale
+            sameSite: 'Strict',
             maxAge: 3600000 
         });
         
@@ -237,7 +206,6 @@ app.post('/api/login', authLimiter, async (req, res) => {
     }
 });
 
-// --- 4. Endpoint pour renvoyer l'email de vérification
 app.post('/api/resend-verification', authLimiter, async (req, res) => {
     const { email } = req.body;
     
@@ -245,7 +213,6 @@ app.post('/api/resend-verification', authLimiter, async (req, res) => {
         const [rows] = await db.query('SELECT id, isVerified FROM users WHERE email = ?', [email]);
         
         if (rows.length === 0 || rows[0].isVerified) {
-            // Sécurité: message vague pour ne pas confirmer l'existence du compte
             return res.status(200).send({ message: 'Si un compte non vérifié est associé à cet e-mail, un nouveau lien a été envoyé.' });
         }
         
@@ -264,13 +231,11 @@ app.post('/api/resend-verification', authLimiter, async (req, res) => {
     }
 });
 
-// --- Endpoint de déconnexion
 app.post('/api/logout', (req, res) => {
     res.clearCookie('token');
     res.status(200).send({ message: 'Déconnexion réussie.' });
 });
 
-// --- Endpoint de profil protégé (Session check)
 app.get('/api/profile', authenticateToken, async (req, res) => {
     try {
         const [rows] = await db.query('SELECT id, username, email, role, isVerified FROM users WHERE id = ? AND isVerified = TRUE', [req.user.id]);
@@ -302,92 +267,125 @@ app.get('/api/admin/users', authenticateToken, authorizeRole(['admin']), async (
     }
 });
 
-// --- 2. Endpoint: CRUD Offres (Admin) ---
+// --- 2. CRUD Catégories (Admin) 🔑 NOUVELLES ROUTES ---
+
+// POST /api/admin/categories: Créer une nouvelle catégorie
+app.post('/api/admin/categories', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const { name, slug, icon, description } = req.body;
+    
+    if (!name || !slug) {
+        return res.status(400).send({ message: 'Le nom et le slug de la catégorie sont requis.' });
+    }
+
+    try {
+        const sqlInsert = 'INSERT INTO categories (name, slug, icon, description) VALUES (?, ?, ?, ?)';
+        await db.query(sqlInsert, [name, slug, icon, description]);
+        res.status(201).send({ message: 'Catégorie créée avec succès.' });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+             return res.status(409).send({ message: 'Ce slug de catégorie existe déjà.' });
+        }
+        console.error('Erreur lors de la création de la catégorie:', error);
+        res.status(500).send({ message: 'Erreur serveur lors de la création de la catégorie.' });
+    }
+});
+
+// PUT /api/admin/categories/:slug: Modifier une catégorie
+app.put('/api/admin/categories/:slug', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const { name, new_slug, icon, description } = req.body;
+    const oldSlug = req.params.slug;
+
+    if (!name || !new_slug) {
+        return res.status(400).send({ message: 'Le nom et le slug de la catégorie sont requis.' });
+    }
+
+    try {
+        const sqlUpdate = 'UPDATE categories SET name = ?, slug = ?, icon = ?, description = ? WHERE slug = ?';
+        const [result] = await db.query(sqlUpdate, [name, new_slug, icon, description, oldSlug]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).send({ message: 'Catégorie non trouvée.' });
+        }
+        res.status(200).send({ message: 'Catégorie mise à jour avec succès.', newSlug: new_slug });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+             return res.status(409).send({ message: 'Le nouveau slug existe déjà.' });
+        }
+        console.error('Erreur lors de la mise à jour de la catégorie:', error);
+        res.status(500).send({ message: 'Erreur serveur lors de la mise à jour de la catégorie.' });
+    }
+});
+
+// DELETE /api/admin/categories/:slug: Supprimer une catégorie
+app.delete('/api/admin/categories/:slug', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const categorySlug = req.params.slug;
+    try {
+        const [result] = await db.query('DELETE FROM categories WHERE slug = ?', [categorySlug]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).send({ message: 'Catégorie non trouvée.' });
+        }
+        res.status(200).send({ message: `Catégorie ${categorySlug} supprimée avec succès.` });
+    } catch (error) {
+        // NOTE: Gérer ER_ROW_IS_REFERENCED si la catégorie a des offres liées
+        console.error('Erreur lors de la suppression de la catégorie:', error);
+        res.status(500).send({ message: 'Erreur serveur lors de la suppression de la catégorie.' });
+    }
+});
+
+
+// --- 3. CRUD Offres (Admin) ---
 
 // POST /api/admin/offers: Créer une nouvelle offre
 app.post('/api/admin/offers', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-    const { 
-        title, description, price, infos_price, image, duration, service_type_id, location_id 
-    } = req.body;
-    
-    if (!service_type_id || !location_id || !title || !description) {
-        return res.status(400).send({ message: 'Données obligatoires manquantes.' });
-    }
+    const { title, description, price, infos_price, image, duration, service_type_id, location_id } = req.body;
+    
+    if (!title || !description || !service_type_id || !location_id) {
+        return res.status(400).send({ message: 'Données manquantes (titre, description, type de service ou lieu).' });
+    }
 
-    try {
-        const sqlInsert = `
-            INSERT INTO offers (title, description, price, infos_price, image, duration, service_type_id, location_id) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        
-        await db.query(sqlInsert, [
-            title, description, price, infos_price, image, duration, service_type_id, location_id
-        ]);
-        
-        res.status(201).send({ message: 'Offre créée avec succès.' });
-        
-    } catch (error) {
-        console.error('Erreur lors de la création de l\'offre:', error);
-        if (error.code === 'ER_NO_REFERENCED_ROW_2') {
-             return res.status(400).send({ message: 'Catégorie ou Destination invalide.' });
-        }
-        res.status(500).send({ message: 'Erreur serveur lors de la création de l\'offre.' });
-    }
+    try {
+        const sqlInsert = 'INSERT INTO offers (title, description, price, infos_price, image, duration, service_type_id, location_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+        await db.query(sqlInsert, [title, description, price, infos_price, image, duration, service_type_id, location_id]);
+        res.status(201).send({ message: 'Nouvelle offre créée avec succès !' });
+    } catch (error) {
+        console.error('Erreur lors de la création de l\'offre:', error);
+        res.status(500).send({ message: 'Erreur serveur lors de la création de l\'offre.' });
+    }
 });
 
-// PUT /api/admin/offers/:id: Modifier une offre existante 🔑 NOUVELLE ROUTE
+// PUT /api/admin/offers/:id: Modifier une offre existante
 app.put('/api/admin/offers/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-    const offerId = req.params.id;
-    const { 
-        title, description, price, infos_price, image, duration, service_type_id, location_id 
-    } = req.body;
+    const offerId = req.params.id;
+    const { title, description, price, infos_price, image, duration, service_type_id, location_id } = req.body;
+    
+    if (!title || !description || !service_type_id || !location_id) {
+        return res.status(400).send({ message: 'Données manquantes (titre, description, type de service ou lieu).' });
+    }
 
-    if (!offerId || !service_type_id || !location_id || !title || !description) {
-        return res.status(400).send({ message: 'Données obligatoires manquantes.' });
-    }
+    try {
+        const sqlUpdate = `
+            UPDATE offers 
+            SET title = ?, description = ?, price = ?, infos_price = ?, image = ?, duration = ?, service_type_id = ?, location_id = ?
+            WHERE id = ?
+        `;
+        const [result] = await db.query(sqlUpdate, [
+            title, description, price, infos_price, image, duration, service_type_id, location_id, offerId
+        ]);
 
-    try {
-        const sqlUpdate = `
-            UPDATE offers 
-            SET title = ?, description = ?, price = ?, infos_price = ?, image = ?, duration = ?, service_type_id = ?, location_id = ? 
-            WHERE id = ?
-        `;
-        const [result] = await db.query(sqlUpdate, [
-            title, description, price, infos_price, image, duration, service_type_id, location_id, offerId
-        ]);
+        if (result.affectedRows === 0) {
+            return res.status(404).send({ message: 'Offre non trouvée ou aucune modification effectuée.' });
+        }
 
-        if (result.affectedRows === 0) {
-            return res.status(404).send({ message: 'Offre non trouvée ou aucune modification effectuée.' });
-        }
-        
-        res.status(200).send({ message: 'Offre mise à jour avec succès.' });
-        
-    } catch (error) {
-        console.error('Erreur lors de la mise à jour de l\'offre:', error);
-        if (error.code === 'ER_NO_REFERENCED_ROW_2') {
-             return res.status(400).send({ message: 'Catégorie ou Destination invalide.' });
-        }
-        res.status(500).send({ message: 'Erreur serveur lors de la mise à jour de l\'offre.' });
-    }
+        res.status(200).send({ message: `Offre #${offerId} mise à jour avec succès.` });
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour de l\'offre:', error);
+        res.status(500).send({ message: 'Erreur serveur lors de la mise à jour.' });
+    }
 });
 
-// DELETE /api/admin/offers/:id: Supprimer une offre par ID (Admin)
-app.delete('/api/admin/offers/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-    const offerId = req.params.id;
-    try {
-        const [result] = await db.query('DELETE FROM offers WHERE id = ?', [offerId]);
-        
-        if (result.affectedRows === 0) {
-            return res.status(404).send({ message: 'Offre non trouvée.' });
-        }
-        res.status(200).send({ message: `Offre ${offerId} supprimée avec succès.` });
-    } catch (error) {
-        console.error('Erreur lors de la suppression de l\'offre:', error);
-        res.status(500).send({ message: 'Erreur serveur lors de la suppression.' });
-    }
-});
 
-// --- 3. CRUD Destinations (Admin) ---
+// --- 4. CRUD Destinations (Admin) ---
 
 // POST /api/admin/locations: Créer une nouvelle destination
 app.post('/api/admin/locations', authenticateToken, authorizeRole(['admin']), async (req, res) => {
@@ -537,7 +535,7 @@ app.get('/api/categories', async (req, res) => {
 app.get('/api/categories/:category_id', async (req, res) => {
     const categorySlug = req.params.category_id.toLowerCase();
     try {
-        const [rows] = await db.query('SELECT id, name, slug FROM categories WHERE slug = ?', [categorySlug]);
+        const [rows] = await db.query('SELECT id, name, slug, icon, description FROM categories WHERE slug = ?', [categorySlug]);
         if (rows.length === 0) {
             return res.status(404).json({ message: "Catégorie non trouvée" });
         }
@@ -550,28 +548,28 @@ app.get('/api/categories/:category_id', async (req, res) => {
 
 // --- Endpoint pour récupérer les détails d'une seule offre par ID 🔑 NOUVELLE ROUTE
 app.get('/api/offers/:id', async (req, res) => {
-    const offerId = req.params.id;
-    // jointure pour obtenir le nom et le slug de la destination
-    const sqlQuery = `
-        SELECT 
-            o.*, 
-            l.name AS location_name, 
-            l.slug AS location_slug
-        FROM offers o
-        JOIN locations l ON o.location_id = l.id
-        WHERE o.id = ?
-    `;
+    const offerId = req.params.id;
+    // jointure pour obtenir le nom et le slug de la destination
+    const sqlQuery = `
+        SELECT 
+            o.*, 
+            l.name AS location_name, 
+            l.slug AS location_slug
+        FROM offers o
+        JOIN locations l ON o.location_id = l.id
+        WHERE o.id = ?
+    `;
 
-    try {
-        const [rows] = await db.query(sqlQuery, [offerId]);
-        if (rows.length === 0) {
-            return res.status(404).json({ message: "Offre non trouvée." });
-        }
-        res.status(200).json(rows[0]);
-    } catch (error) {
-        console.error('Erreur lors de la récupération de l\'offre:', error);
-        res.status(500).json({ message: "Erreur interne du serveur lors de la récupération de l'offre.", dbError: error.message });
-    }
+    try {
+        const [rows] = await db.query(sqlQuery, [offerId]);
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Offre non trouvée." });
+        }
+        res.status(200).json(rows[0]);
+    } catch (error) {
+        console.error('Erreur lors de la récupération de l\'offre:', error);
+        res.status(500).json({ message: "Erreur interne du serveur lors de la récupération de l'offre.", dbError: error.message });
+    }
 });
 
 

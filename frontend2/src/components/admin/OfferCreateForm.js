@@ -1,8 +1,6 @@
-// src/components/admin/OfferCreateForm.js
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams, useParams } from 'react-router-dom';
 
 const API_URL = 'http://localhost:3001'; 
 
@@ -10,8 +8,17 @@ const OfferCreateForm = () => {
     // Hooks
     const { isAdmin, loading: authLoading } = useAuth();
     const navigate = useNavigate();
+    
+    // Récupération des paramètres :
     const [searchParams] = useSearchParams();
-    const locationSlug = searchParams.get('location');
+    const { categorySlug: paramCategorySlug } = useParams(); // Nouveau: vient de la route /categories/:categorySlug/admin/create-offer
+    
+    // Ancien: vient de la route /admin/offers/create?location=slug-du-lieu
+    const searchLocationSlug = searchParams.get('location'); 
+    
+    // Détermine le type d'identification et la valeur à utiliser (priorité au categorySlug pour la cohérence)
+    const activeSlug = paramCategorySlug || searchLocationSlug;
+    const isCategoryContext = !!paramCategorySlug;
 
     // États du formulaire
     const [title, setTitle] = useState('');
@@ -22,50 +29,102 @@ const OfferCreateForm = () => {
     const [duration, setDuration] = useState('');
     const [serviceTypeId, setServiceTypeId] = useState('');
     
-    // États pour les données externes (Catégories et Lieu)
+    // États pour les données externes (Catégories, Lieux et ID/Nom de référence)
     const [categories, setCategories] = useState([]);
-    const [locationId, setLocationId] = useState(null);
+    const [locations, setLocations] = useState([]); // 🔑 NOUVEAU: Stocke toutes les destinations
+    const [locationId, setLocationId] = useState(''); // Changé à '' pour la sélection par défaut
     const [locationName, setLocationName] = useState('');
+    const [categoryId, setCategoryId] = useState(null); 
+    
     const [formLoading, setFormLoading] = useState(true);
 
     // États du processus
     const [message, setMessage] = useState(null);
-    const [messageType, setMessageType] = useState(null); // Changé à null pour ne pas désactiver le bouton
-    const [isSubmitting, setIsSubmitting] = useState(false); // 🔑 NOUVEL ÉTAT DE SOUMISSION
+    const [messageType, setMessageType] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false); 
+
+    // Détermine la redirection finale
+    const determineRedirectPath = useCallback(() => {
+        if (isCategoryContext) {
+            // Contexte Catégorie: Retourne à la page d'offres de cette catégorie
+            return `/categories/${paramCategorySlug}`; 
+        } else if (searchLocationSlug) {
+            // Contexte Lieu: Retourne à la page d'offres de cette destination
+            return `/locations/${searchLocationSlug}`;
+        }
+        return '/'; // Fallback
+    }, [isCategoryContext, paramCategorySlug, searchLocationSlug]);
+
 
     // --- 2. Chargement des données (useCallback) ---
     const fetchDependencies = useCallback(async () => {
-        if (!locationSlug) {
-            setMessage("Erreur : Le slug de la destination est manquant dans l'URL.");
+        if (!activeSlug) {
+            setMessage("Erreur : Le slug de la destination ou de la catégorie est manquant dans l'URL.");
             setMessageType('danger');
             setFormLoading(false);
             return;
         }
 
         try {
-            const [categoriesResponse, locationResponse] = await Promise.all([
-                fetch(`${API_URL}/api/categories`),
-                fetch(`${API_URL}/api/locations/${locationSlug}`)
+            // 🔑 AJOUT du fetch des destinations
+            const [categoriesResponse, locationsResponse] = await Promise.all([
+                fetch(`${API_URL}/api/categories`, { credentials: 'include' }),
+                fetch(`${API_URL}/api/locations`, { credentials: 'include' }) // Récupère toutes les destinations
             ]);
 
             const categoriesData = await categoriesResponse.json();
-            const locationData = await locationResponse.json();
-            
-            if (!locationResponse.ok) {
-                throw new Error(`Destination '${locationSlug}' non trouvée.`);
-            }
+            const locationsData = await locationsResponse.json(); // Données des destinations
 
             setCategories(categoriesData);
-            setLocationName(locationData.name);
-            setLocationId(locationData.id);
+            setLocations(locationsData); // Stocke les destinations
             
-            if(categoriesData.length > 0) {
-                setServiceTypeId(categoriesData[0].id.toString());
+            let currentCategoryId = null;
+            let currentCategoryName = null;
+
+            if (isCategoryContext) {
+                // 🔑 NOUVELLE LOGIQUE: Contexte Catégorie
+                const matchingCategory = categoriesData.find(cat => cat.slug === paramCategorySlug);
+                
+                if (matchingCategory) {
+                    currentCategoryId = matchingCategory.id;
+                    currentCategoryName = matchingCategory.name;
+                    setCategoryId(currentCategoryId);
+                    setLocationName(currentCategoryName); // Affiche le nom de la catégorie dans le titre
+                    
+                    // Pré-sélectionner la première destination disponible
+                    if (locationsData.length > 0) {
+                        setLocationId(locationsData[0].id.toString());
+                    } else {
+                        // Gérer l'erreur s'il n'y a aucune destination
+                        throw new Error("Aucune destination disponible.");
+                    }
+                } else {
+                    throw new Error(`Catégorie '${paramCategorySlug}' non trouvée.`);
+                }
+            } else {
+                // ANCIENNE LOGIQUE: Contexte Destination (via Query Param)
+                const locationResponse = await fetch(`${API_URL}/api/locations/${searchLocationSlug}`, { credentials: 'include' });
+                const locationData = await locationResponse.json();
+                
+                if (!locationResponse.ok) {
+                    throw new Error(`Destination '${searchLocationSlug}' non trouvée.`);
+                }
+                
+                setLocationName(locationData.name);
+                setLocationId(locationData.id.toString()); // Pré-sélectionne le lieu de l'URL
+            }
+            
+            // Si des catégories existent, pré-sélectionner la première
+            if (categoriesData.length > 0) {
+                // Si on est dans le contexte Catégorie, l'ID de la catégorie est déjà trouvé.
+                const defaultCategoryId = currentCategoryId ? currentCategoryId.toString() : categoriesData[0].id.toString();
+                setServiceTypeId(defaultCategoryId);
             } else {
                 setServiceTypeId('');
             }
+            
             setMessage(null);
-            setMessageType(null); // Réinitialiser le type de message après chargement
+            setMessageType(null); 
 
         } catch (error) {
             console.error('Erreur de chargement des données:', error);
@@ -74,7 +133,7 @@ const OfferCreateForm = () => {
         } finally {
             setFormLoading(false);
         }
-    }, [locationSlug]);
+    }, [isCategoryContext, paramCategorySlug, searchLocationSlug]);
 
     // --- 3. useEffect ---
     useEffect(() => {
@@ -97,14 +156,15 @@ const OfferCreateForm = () => {
     // --- 5. Fonction de Soumission du Formulaire ---
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setIsSubmitting(true); // 🔑 DÉBUT DE LA SOUMISSION
+        setIsSubmitting(true);
         setMessage('Création de l\'offre en cours...');
         setMessageType('info');
 
-        if (!locationId || !serviceTypeId) {
-             setMessage('Erreur: IDs de configuration manquants (Destination ou Catégorie).');
+        // Validation ID obligatoire : locationId ET serviceTypeId
+        if (!serviceTypeId || !locationId) {
+             setMessage('Erreur: Les IDs de catégorie et de destination sont obligatoires.');
              setMessageType('danger');
-             setIsSubmitting(false); // 🔑 ÉCHEC: RÉACTIVER LE BOUTON
+             setIsSubmitting(false);
              return;
         }
 
@@ -112,13 +172,16 @@ const OfferCreateForm = () => {
         const dataToSend = {
             title,
             description,
-            // CRITIQUE : Envoyer null si vide, sinon Number(price)
             price: price === '' ? null : parseFloat(price), 
             infos_price: infosPrice,
             image,
             duration,
-            service_type_id: Number(serviceTypeId), // S'assurer que c'est un nombre
-            location_id: Number(locationId), // S'assurer que c'est un nombre
+            service_type_id: Number(serviceTypeId),
+            // location_id est maintenant OBLIGATOIRE et est toujours envoyé
+            location_id: Number(locationId),
+            
+            // category_id est toujours envoyé si disponible (seulement dans le contexte Catégorie pour l'instant)
+            category_id: categoryId ? Number(categoryId) : null, 
         };
 
         try {
@@ -135,24 +198,26 @@ const OfferCreateForm = () => {
                 setMessage(data.message || `Offre "${title}" créée avec succès !`);
                 setMessageType('success');
                 
-                // Nettoyer les champs textuels
+                // Nettoyer les champs textuels (sauf la catégorie sélectionnée)
                 setTitle(''); setDescription(''); setPrice(''); setInfosPrice('');
                 setImage(''); setDuration('');
                 
+                const redirectPath = determineRedirectPath();
+                
                 setTimeout(() => {
-                    navigate(`/locations/${locationSlug}`);
+                    navigate(redirectPath);
                 }, 2000);
 
             } else {
                 setMessage(data.message || 'Erreur lors de la création de l\'offre.');
                 setMessageType('danger');
-                setIsSubmitting(false); // 🔑 ÉCHEC: RÉACTIVER LE BOUTON
+                setIsSubmitting(false); 
             }
         } catch (error) {
             console.error('Erreur réseau/serveur:', error);
             setMessage('Échec de la connexion au serveur.');
             setMessageType('danger');
-            setIsSubmitting(false); // 🔑 ERREUR RÉSEAU: RÉACTIVER LE BOUTON
+            setIsSubmitting(false); 
         }
     };
 
@@ -160,8 +225,15 @@ const OfferCreateForm = () => {
         <div className="container py-5">
             <div className="mx-auto card p-4 shadow-lg" style={{ maxWidth: '800px' }}>
                 <h2 className="fw-bold text-warning text-center mb-4">
-                    Ajouter une Offre à : <span className="text-primary">{locationName || locationSlug}</span>
+                    Ajouter une Offre pour : <span className="text-primary">{locationName || activeSlug}</span>
                 </h2>
+                
+                {isCategoryContext && (
+                    <div className="alert alert-info border-primary text-center">
+                        Création d'offre pour la catégorie **{locationName}**. Veuillez sélectionner la destination où elle sera disponible.
+                    </div>
+                )}
+
 
                 <form onSubmit={handleSubmit}>
                     
@@ -173,6 +245,7 @@ const OfferCreateForm = () => {
                                 onChange={(e) => setServiceTypeId(e.target.value)} 
                                 className="form-select" 
                                 required
+                                disabled={isSubmitting}
                             >
                                 <option value="" disabled>Sélectionner une catégorie</option>
                                 {categories.map(cat => (
@@ -182,16 +255,40 @@ const OfferCreateForm = () => {
                                 ))}
                             </select>
                         </div>
+                        {/* 🔑 NOUVEAU CHAMP : Sélection de la destination, obligatoire */}
                         <div className="col-md-6 mb-3">
-                            <label className="form-label">Titre de l'Offre</label>
-                            <input 
-                                type="text" 
-                                value={title} 
-                                onChange={(e) => setTitle(e.target.value)} 
-                                className="form-control" 
-                                required 
-                            />
+                            <label className="form-label">Destination (Ville/Lieu)</label>
+                            <select 
+                                value={locationId} 
+                                onChange={(e) => setLocationId(e.target.value)} 
+                                className="form-select" 
+                                required
+                                disabled={isSubmitting || !isCategoryContext}
+                            >
+                                <option value="" disabled>Sélectionner une destination</option>
+                                {locations.map(loc => (
+                                    <option key={loc.id} value={loc.id}>
+                                        {loc.name}
+                                    </option>
+                                ))}
+                            </select>
+                            {!isCategoryContext && (
+                                <small className="text-muted">Destination fixe : {locationName}</small>
+                            )}
                         </div>
+                        {/* Fin du NOUVEAU CHAMP */}
+                    </div>
+                    
+                    <div className="mb-3">
+                        <label className="form-label">Titre de l'Offre</label>
+                        <input 
+                            type="text" 
+                            value={title} 
+                            onChange={(e) => setTitle(e.target.value)} 
+                            className="form-control" 
+                            required 
+                            disabled={isSubmitting}
+                        />
                     </div>
 
                     <div className="mb-3">
@@ -202,6 +299,7 @@ const OfferCreateForm = () => {
                             className="form-control" 
                             rows="3"
                             required
+                            disabled={isSubmitting}
                         ></textarea>
                     </div>
 
@@ -215,6 +313,7 @@ const OfferCreateForm = () => {
                                 onChange={(e) => setPrice(e.target.value)} 
                                 className="form-control" 
                                 placeholder="Laisser vide si 'Prix sur demande'"
+                                disabled={isSubmitting}
                             />
                         </div>
                         <div className="col-md-6 mb-3">
@@ -225,6 +324,7 @@ const OfferCreateForm = () => {
                                 onChange={(e) => setDuration(e.target.value)} 
                                 className="form-control" 
                                 placeholder="Facultatif"
+                                disabled={isSubmitting}
                             />
                         </div>
                     </div>
@@ -237,6 +337,7 @@ const OfferCreateForm = () => {
                             onChange={(e) => setInfosPrice(e.target.value)} 
                             className="form-control" 
                             placeholder="Ex: Prix par personne, ou : hors taxes"
+                            disabled={isSubmitting}
                         />
                     </div>
                     
@@ -248,23 +349,26 @@ const OfferCreateForm = () => {
                             onChange={(e) => setImage(e.target.value)} 
                             className="form-control" 
                             placeholder="Ex: https://votresite.com/offre.jpg"
+                            disabled={isSubmitting}
                         />
                     </div>
 
-                    <input type="hidden" value={locationId || ''} />
+                    {/* Champs cachés pour le contexte de l'offre (pour l'API) */}
+                    {locationId && <input type="hidden" value={locationId} />}
+                    {categoryId && <input type="hidden" value={categoryId} />}
                     
                     {message && <div className={`alert alert-${messageType || 'info'} mt-3`}>{message}</div>}
 
                     <button 
                         type="submit" 
                         className="btn btn-warning w-100 mt-4 fw-bold text-dark"
-                        disabled={isSubmitting || formLoading || (categories.length === 0)} // 🔑 DÉSACTIVER PENDANT LE CHARGEMENT ET LA SOUMISSION
+                        disabled={isSubmitting || formLoading || (categories.length === 0) || (isCategoryContext && !locationId)}
                     >
                         {isSubmitting ? "Enregistrement en cours..." : "Créer l'Offre"}
                     </button>
                     <button 
                         type="button" 
-                        onClick={() => navigate(`/locations/${locationSlug}`)}
+                        onClick={() => navigate(determineRedirectPath())}
                         className="btn btn-outline-secondary w-100 mt-2"
                         disabled={isSubmitting}
                     >

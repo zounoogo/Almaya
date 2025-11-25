@@ -9,7 +9,9 @@ const API_URL = 'http://localhost:3001';
 const OfferEditForm = () => {
     // Hooks
     const { isAdmin, loading: authLoading } = useAuth();
-    const { id } = useParams(); 
+    // Récupère l'ID générique (id) OU offer_id, et categorySlug
+    const { id, offer_id, categorySlug } = useParams(); 
+    const offerToEditId = id || offer_id; 
     const navigate = useNavigate();
 
     // États du formulaire
@@ -26,28 +28,51 @@ const OfferEditForm = () => {
     const [locationId, setLocationId] = useState(null); 
     const [locationSlug, setLocationSlug] = useState(''); 
     const [locationName, setLocationName] = useState(''); 
-    const [formLoading, setFormLoading] = useState(true);
+    const [formLoading, setFormLoading] = useState(true); 
     const [message, setMessage] = useState(null);
-    const [messageType, setMessageType] = useState(null); // Changé à null pour éviter le blocage initial
+    const [messageType, setMessageType] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false); 
+
+    // Détermine la redirection finale : soit vers la catégorie, soit vers la destination.
+    const determineRedirectPath = useCallback(() => {
+        if (categorySlug) {
+            return `/categories/${categorySlug}`;
+        }
+        return `/locations/${locationSlug}`;
+    }, [categorySlug, locationSlug]);
+
 
     // --- 2. Fonctions de Chargement des Données ---
     const fetchDependencies = useCallback(async () => {
-        if (!id) return;
+        if (!offerToEditId) {
+            setFormLoading(false);
+            setMessage("ID de l'offre non spécifié.");
+            setMessageType('danger');
+            return;
+        }
+
         setMessage('Chargement des données existantes...');
         setMessageType('info');
 
         try {
+            // Requête simultanée pour les catégories et les détails de l'offre
             const [categoriesResponse, offerResponse] = await Promise.all([
                 fetch(`${API_URL}/api/categories`),
-                fetch(`${API_URL}/api/offers/${id}`) 
+                fetch(`${API_URL}/api/offers/${offerToEditId}`) 
             ]);
 
             const categoriesData = await categoriesResponse.json();
             const offerDetail = await offerResponse.json(); 
 
             if (!offerResponse.ok) {
-                throw new Error("Détails de l'offre non trouvés.");
+                const errorStatus = offerResponse.status;
+                let errorMessage = `Détails de l'offre non trouvés (Statut: ${errorStatus}).`;
+                if (errorStatus === 404) {
+                     errorMessage += " L'ID de l'offre est probablement introuvable sur le serveur.";
+                } else if (offerDetail.message) {
+                     errorMessage = `Erreur API (${errorStatus}): ${offerDetail.message}`;
+                }
+                throw new Error(errorMessage);
             }
             
             // Pré-remplir les champs
@@ -73,25 +98,32 @@ const OfferEditForm = () => {
             setMessage(error.message || 'Impossible de charger les données de configuration.');
             setMessageType('danger');
         } finally {
-            setFormLoading(false);
+            setFormLoading(false); 
         }
-    }, [id]); 
+    }, [offerToEditId]); 
 
-    // --- 3. useEffect ---
+    // --- 3. useEffect : Déclenchement du chargement après Auth ---
     useEffect(() => {
-        if (!authLoading && isAdmin) {
+        if (!authLoading && isAdmin && offerToEditId) {
             fetchDependencies();
         }
-    }, [authLoading, isAdmin, fetchDependencies]);
+    }, [authLoading, isAdmin, offerToEditId, fetchDependencies]);
 
 
     // --- 4. Protection (Après les Hooks) ---
     if (!authLoading && !isAdmin) {
         return <Navigate to="/" replace />;
     }
+    // Affichage de l'état de chargement ou de l'erreur
     if (authLoading || formLoading) {
         return <div className="text-center py-5">
-            {authLoading ? 'Vérification des permissions...' : 'Chargement des données de l\'offre...'}
+            {message && messageType === 'danger' && !authLoading ? (
+                <div className={`alert alert-danger mx-auto`} style={{ maxWidth: '600px' }}>
+                    {message}
+                </div>
+            ) : (
+                authLoading ? 'Vérification des permissions...' : 'Chargement des données de l\'offre...'
+            )}
         </div>;
     }
     
@@ -107,11 +139,12 @@ const OfferEditForm = () => {
             title, description, infos_price: infosPrice, image, duration,
             service_type_id: Number(serviceTypeId),
             location_id: Number(locationId),
-            price: price === '' ? null : parseFloat(price),
+            // Envoie null si le prix est vide
+            price: price === '' ? null : parseFloat(price), 
         };
 
         try {
-            const response = await fetch(`${API_URL}/api/admin/offers/${id}`, {
+            const response = await fetch(`${API_URL}/api/admin/offers/${offerToEditId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include', 
@@ -124,8 +157,10 @@ const OfferEditForm = () => {
                 setMessage(data.message || 'Offre mise à jour avec succès !');
                 setMessageType('success');
                 
+                const redirectPath = determineRedirectPath(); 
+                
                 setTimeout(() => {
-                    navigate(`/locations/${locationSlug}`); 
+                    navigate(redirectPath); 
                 }, 2000);
 
             } else {
@@ -145,7 +180,7 @@ const OfferEditForm = () => {
         <div className="container py-5">
             <div className="mx-auto card p-4 shadow-lg" style={{ maxWidth: '800px' }}>
                 <h2 className="fw-bold text-info text-center mb-4">
-                    Modifier l'Offre #{id} à : <span className="text-primary">{locationName}</span>
+                    ✏️ Modifier l'Offre #{offerToEditId} à : <span className="text-primary">{locationName}</span>
                 </h2>
 
                 <form onSubmit={handleSubmit}>
@@ -160,6 +195,7 @@ const OfferEditForm = () => {
                                 required
                                 disabled={isSubmitting}
                             >
+                                <option value="" disabled>Sélectionnez une catégorie</option> 
                                 {categories.map(cat => (
                                     <option key={cat.id} value={cat.id}>
                                         {cat.name}
@@ -253,7 +289,7 @@ const OfferEditForm = () => {
                     </button>
                     <button 
                         type="button" 
-                        onClick={() => navigate(-1)}
+                        onClick={() => navigate(determineRedirectPath())}
                         className="btn btn-outline-secondary w-100 mt-2"
                         disabled={isSubmitting}
                     >
