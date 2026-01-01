@@ -12,7 +12,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "https://YOUR_RAILWAY_BACKEND_URL/api/$1"
+      "dest": "https://httpbin.org/status/200"
     },
     {
       "src": "/(.*)",
@@ -20,7 +20,7 @@
     }
   ],
   "env": {
-    "REACT_APP_API_URL": "https://YOUR_RAILWAY_BACKEND_URL",
+    "REACT_APP_API_URL": "https://httpbin.org/status/200",
     "REACT_APP_WHATSAPP_NUMBER": "212690002284"
   }
 }
