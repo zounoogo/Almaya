@@ -1,0 +1,22 @@
+# Railway Configuration for ALMAYA Backend (Free Tier)
+# This will use Railway's built-in MySQL database
+
+# Build Command (if needed)
+# build:
+#   nixpacks build .
+
+# Start Command
+startCommand: node server.js
+
+# Environment Variables (set these in Railway dashboard)
+# Railway will auto-generate database variables:
+# MYSQLHOST, MYSQLUSER, MYSQLPASSWORD, MYSQLDATABASE, MYSQLPORT
+
+# Additional variables you need to set:
+# JWT_SECRET, EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS, RECIPIENT_EMAIL, FRONTEND_URL
+
+# Health Check
+healthcheckPath: /api/categories
+healthcheckTimeout: 300
+restartPolicyType: ON_FAILURE
+restartPolicyMaxRetries: 10
