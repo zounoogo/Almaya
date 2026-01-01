@@ -18,13 +18,17 @@ const port = 3001;
 
 // --- 1. CORS & Cookies
 app.use(cors({
-    origin: 'http://localhost:3000', 
-    credentials: true, 
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
 }));
 app.use(express.json());
-app.use(cookieParser()); 
+app.use(cookieParser());
 
-const JWT_SECRET = process.env.JWT_SECRET || 'UTILISEZ_UNE_CLE_SECRETE_FORTE_EN_PROD'; 
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('JWT_SECRET environment variable is required');
+    process.exit(1);
+}
 
 // --- 2. Rate Limiting (Anti-Brute Force)
 const authLimiter = rateLimit({
@@ -50,7 +54,7 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendVerificationEmail = async (userEmail, token) => {
-    const verificationLink = `http://localhost:3001/api/verify-email?token=${token}`; 
+    const verificationLink = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/api/verify-email?token=${token}`;
 
     const mailOptions = {
         from: process.env.EMAIL_USER,

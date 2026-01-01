@@ -4,6 +4,18 @@
 ## Prerequisites
 - GitHub account
 - Railway account (free)
+- Run pre-deployment check: `.\pre-deploy.bat`
+
+## Step 1: Pre-deployment Setup
+```bash
+# Run the pre-deployment script (Windows)
+.\pre-deploy.bat
+
+# This will:
+# - Clean up unnecessary files
+# - Verify all required files exist
+# - Check configuration
+```
 
 ## Step 1: Push Code to GitHub
 ```bash
@@ -24,7 +36,15 @@ git push -u origin main
 4. Connect your GitHub account
 5. Select your `almaya-services` repository
 
-### 2.2 Add Database
+### 2.2 Railway Configuration
+Railway will automatically detect the `nixpacks.toml` file in your project root and deploy from the `backend/` directory. This file tells Railway:
+
+- To use Node.js 18
+- To install dependencies in the backend folder
+- To start the application with `npm start` from the backend directory
+- To use the health check endpoint `/api/categories`
+
+### 2.3 Add Database
 1. In Railway dashboard, click "Add Plugin"
 2. Choose "Database" → "MySQL"
 3. Database will be created automatically
