@@ -143,8 +143,9 @@ EMAIL_PASS=your-16-char-app-password
 
 # Application
 RECIPIENT_EMAIL=your-email@gmail.com
-PORT=3001
 ```
+
+**⚠️ IMPORTANT**: Do **NOT** set `PORT` manually in Railway! Railway automatically assigns a dynamic port. Your code will use `process.env.PORT` automatically.
 
 4. Click "Deploy" to apply changes
 

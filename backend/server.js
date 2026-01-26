@@ -170,6 +170,11 @@ app.get('/api/verify-email', async (req, res) => {
 
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
         res.redirect(`${frontendUrl}/verification-success`);
+    } catch (error) {
+        console.error('Error during email verification:', error);
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        res.redirect(`${frontendUrl}/login?error=verification_failed`);
+    }
 });
 
 app.post('/api/login', authLimiter, async (req, res) => {
