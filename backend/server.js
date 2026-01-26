@@ -159,20 +159,17 @@ app.get('/api/verify-email', async (req, res) => {
         const [rows] = await db.query(sql, [token]);
 
         if (rows.length === 0) {
-            return res.redirect('http://localhost:3000/login?error=invalid_token'); 
-        }
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+            return res.redirect(`${frontendUrl}/login?error=invalid_token`); 
+        }
 
-        const userId = rows[0].id;
-        
-        const updateSql = 'UPDATE users SET isVerified = TRUE, verificationToken = NULL WHERE id = ?';
-        await db.query(updateSql, [userId]);
+        const userId = rows[0].id;
+        
+        const updateSql = 'UPDATE users SET isVerified = TRUE, verificationToken = NULL WHERE id = ?';
+        await db.query(updateSql, [userId]);
 
-        res.redirect('http://localhost:3000/verification-success'); 
-
-    } catch (error) {
-        console.error('Erreur lors de la vérification de l\'email:', error);
-        res.status(500).send('Erreur interne du serveur lors de la vérification.');
-    }
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        res.redirect(`${frontendUrl}/verification-success`);
 });
 
 app.post('/api/login', authLimiter, async (req, res) => {

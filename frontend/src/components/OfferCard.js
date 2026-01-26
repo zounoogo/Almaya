@@ -32,16 +32,17 @@ const OfferCard = ({
 
         try {
             // URL de l'API construite dynamiquement
+            const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
             let apiUrl = '';
             
             if (itemType === 'offer') {
-                apiUrl = `http://localhost:3001/api/admin/offers/${itemId}`;
+                apiUrl = `${API_URL}/api/admin/offers/${itemId}`;
             } else if (itemType === 'location') {
                  // Supposons que les destinations utilisent le slug pour la suppression (si l'API le permet)
-                apiUrl = `http://localhost:3001/api/admin/locations/${offer.slug}`;
+                apiUrl = `${API_URL}/api/admin/locations/${offer.slug}`;
             } else if (itemType === 'category') {
                 // Supposons que les catégories utilisent le slug pour la suppression
-                apiUrl = `http://localhost:3001/api/admin/categories/${offer.slug}`;
+                apiUrl = `${API_URL}/api/admin/categories/${offer.slug}`;
             } else {
                  throw new Error("Type d'élément inconnu pour la suppression.");
             }

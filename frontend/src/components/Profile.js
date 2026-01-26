@@ -17,7 +17,8 @@ const Profile = () => {
                 return;
             }
             try {
-                const response = await fetch('http://localhost:3001/api/profile', {
+                const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+                const response = await fetch(`${API_URL}/api/profile`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -52,13 +53,8 @@ const Profile = () => {
 
     return (
         <div className="container py-5">
-            <h2 className="text-center mb-4">Votre Espace Personnel</h2>
-            {/* Ajout du message "En cours de construction" */}
-            <div className="alert alert-warning text-center" role="alert">
-                **Cette page est en cours de construction.** 🚧
-            </div>
+            <h2 className="text-center mb-4">Your Account Profile</h2>
             <hr className="mb-4" />
-            {/* Fin de l'ajout */}
             {profileData ? (
                 <div className="card p-4 mx-auto" style={{ maxWidth: '500px' }}>
                     <p className="lead">Bienvenue, **{profileData.username}** !</p>

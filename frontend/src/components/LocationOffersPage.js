@@ -5,7 +5,7 @@ import OfferCard from './OfferCard';
 import { useAuth } from '../contexts/AuthContext'; 
 
 const LocationOffersPage = () => {
-    const API_URL = 'http://localhost:3001'; // Définir l'URL API localement
+    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
     const navigate = useNavigate();
     
     // Accès aux fonctions, données du panier et statut Admin via useAuth

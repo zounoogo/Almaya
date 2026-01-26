@@ -17,7 +17,8 @@ const Locations = () => {
         }
 
         try {
-            const response = await fetch(`http://localhost:3001/api/admin/locations/${locationSlug}`, {
+            const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+            const response = await fetch(`${API_URL}/api/admin/locations/${locationSlug}`, {
                 method: 'DELETE',
                 credentials: 'include', 
             });
@@ -41,7 +42,8 @@ const Locations = () => {
     useEffect(() => {
         const fetchLocations = async () => {
             try {
-                const response = await fetch('http://localhost:3001/api/locations');
+                const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+                const response = await fetch(`${API_URL}/api/locations`);
                 
                 if (!response.ok) {
                     throw new Error('Erreur de réseau ou de serveur lors du chargement des destinations.');

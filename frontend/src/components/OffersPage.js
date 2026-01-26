@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import OfferCard from './OfferCard'; 
 import { useAuth } from '../contexts/AuthContext'; 
 
-const API_URL = 'http://localhost:3001'; 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001'; 
 
 const OffersPage = () => {
     const [offers, setOffers] = useState([]);

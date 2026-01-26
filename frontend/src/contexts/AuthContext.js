@@ -5,7 +5,7 @@ import React, { createContext, useState, useEffect, useContext, useCallback } fr
 const AuthContext = createContext(null);
 
 // **CRITIQUE : Mettez à jour cette URL vers votre domaine HTTPS en production**
-const API_URL = 'http://localhost:3001'; 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001'; 
 
 // --- Fonction d'aide pour vérifier la session utilisateur via le serveur ---
 const fetchUserProfile = async () => {

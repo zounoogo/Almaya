@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Navigate, useNavigate, useSearchParams, useParams } from 'react-router-dom';
 
-const API_URL = 'http://localhost:3001'; 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001'; 
 
 const OfferCreateForm = () => {
     // Hooks
