@@ -748,11 +748,11 @@ app.get('/api/init-database/:token', async (req, res) => {
     DROP TABLE IF EXISTS categories;
 
     CREATE TABLE categories (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NOT NULL UNIQUE,
-        slug VARCHAR(255) NOT NULL UNIQUE,
-        image_url TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) NOT NULL UNIQUE,
+    description TEXT,
+    icon VARCHAR(255)
     );
 
     CREATE TABLE locations (
