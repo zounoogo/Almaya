@@ -133,7 +133,7 @@ const OfferCreateForm = () => {
         } finally {
             setFormLoading(false);
         }
-    }, [isCategoryContext, paramCategorySlug, searchLocationSlug]);
+    }, [isCategoryContext, paramCategorySlug, searchLocationSlug, activeSlug]);
 
     // --- 3. useEffect ---
     useEffect(() => {

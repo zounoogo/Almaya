@@ -60,7 +60,7 @@ const LocationOffersPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [location_slug]); 
+    }, [location_slug, API_URL]); 
 
 
     useEffect(() => {

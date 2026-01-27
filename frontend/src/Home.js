@@ -1,5 +1,4 @@
 // src/Home.js
-import HeroSection from './components/HeroSection';
 import Categories from './components/Categories'; // Le composant a été renommé
 import AboutSection from './components/AboutSection';
 import TestimonialsSection from './components/TestimonialsSection';

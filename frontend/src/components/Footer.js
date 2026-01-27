@@ -42,7 +42,7 @@ const Footer = () => {
                                 <>
                                     <li><Link to="/profile" className="text-white text-decoration-none hover-link-info">Mon Compte</Link></li>
                                     <li><Link to="/cart" className="text-white text-decoration-none hover-link-info">Panier</Link></li>
-                                    <li><a href="#" onClick={logout} className="text-white text-decoration-none hover-link-info">Déconnexion</a></li>
+                                    <li><button type="button" onClick={logout} className="btn btn-link text-white text-decoration-none hover-link-info p-0">Déconnexion</button></li>
                                 </>
                             )}
                         </ul>
