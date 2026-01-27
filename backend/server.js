@@ -600,7 +600,7 @@ app.get('/api/categories/:category_id/offers', async (req, res) => {
 // --- Endpoint pour récupérer toutes les destinations
 app.get('/api/locations', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT id, name, slug, region FROM locations ORDER BY name ASC');
+        const [rows] = await db.query('SELECT id, name, slug, region, image FROM locations ORDER BY name ASC');
         res.status(200).json(rows);
     } catch (error) {
         console.error('Erreur lors de la récupération des destinations:', error);
@@ -612,7 +612,7 @@ app.get('/api/locations', async (req, res) => {
 app.get('/api/locations/:location_slug', async (req, res) => {
     const locationSlug = req.params.location_slug.toLowerCase();
     try {
-        const [rows] = await db.query('SELECT id, name, slug, region FROM locations WHERE slug = ?', [locationSlug]);
+        const [rows] = await db.query('SELECT id, name, slug, region, image FROM locations WHERE slug = ?', [locationSlug]);
         if (rows.length === 0) {
             return res.status(404).json({ message: "Destination non trouvée" });
         }
@@ -827,3 +827,4 @@ app.listen(port, () => {
         console.warn("ATTENTION: En production, utilisez un proxy inverse (Nginx/Apache) pour le HTTPS!");
     }
 });
+
